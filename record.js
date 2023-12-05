@@ -23,7 +23,36 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    function convertToCsv(records) {
+        const csvRows = [];
+        // Add header
+        csvRows.push('Start Time,End Time,Duration');
+        // Add records
+        records.forEach(function(record) {
+            const startTimeStr = new Date(record.startTime).toLocaleString();
+            const endTimeStr = new Date(record.endTime).toLocaleString();
+            const duration = record.elapsedTime;
+            const hours = Math.floor(duration / 3600000);
+            const minutes = Math.floor((duration % 3600000) / 60000);
+            const seconds = Math.floor((duration % 60000) / 1000);
+            const durationStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            csvRows.push(`${startTimeStr},${endTimeStr},${durationStr}`);
+        });
+        return csvRows.join('\n');
+    }
+
     document.getElementById('exportCsv').addEventListener('click', function() {
-        // Function to export the records as CSV will be implemented here
+        chrome.storage.local.get({ records: [] }, function(data) {
+            const csvData = convertToCsv(data.records);
+            const blob = new Blob([csvData], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('hidden', '');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'records.csv');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
     });
 });
