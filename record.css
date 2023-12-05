@@ -21,10 +21,10 @@ td {
 }
 
 button#exportCsv, button#clearRecords {
-    display: block; /* Make the button a block to fit the content */
-    margin: 20px auto; /* Center the button and add margin */
-    padding: 10px 20px; /* Add padding for better appearance */
-    font-size: 16px; /* Increase font size */
+    display: inline-block; /* Make the button inline-block to place side by side */
+    margin: 20px 10px; /* Add margin to the right and left for spacing */
+    padding: 5px 15px; /* Reduce padding for a smaller button */
+    font-size: 14px; /* Reduce font size */
     cursor: pointer; /* Change cursor to pointer on hover */
     background-color: #4CAF50; /* Add background color */
     color: white; /* Change text color to white */
@@ -34,7 +34,7 @@ button#exportCsv, button#clearRecords {
 }
 
 button#clearRecords {
-    background-color: #f44336; /* Change background color for clear button */
+    background-color: #f44336; /* Keep background color for clear button */
 }
 
 ul {
