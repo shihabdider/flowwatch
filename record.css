@@ -20,7 +20,7 @@ td {
     padding: 10px; /* Add padding to create more space between columns */
 }
 
-button#exportCsv {
+button#exportCsv, button#clearRecords {
     display: block; /* Make the button a block to fit the content */
     margin: 20px auto; /* Center the button and add margin */
     padding: 10px 20px; /* Add padding for better appearance */
@@ -31,6 +31,10 @@ button#exportCsv {
     border: none; /* Remove border */
     border-radius: 4px; /* Add border radius for rounded corners */
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Add shadow for depth */
+}
+
+button#clearRecords {
+    background-color: #f44336; /* Change background color for clear button */
 }
 
 ul {
