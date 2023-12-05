@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
             startTimeTd.textContent = startTimeStr;
             endTimeTd.textContent = endTimeStr;
             durationTd.textContent = durationStr;
+            tr.appendChild(dateTd);
             tr.appendChild(startTimeTd);
             tr.appendChild(endTimeTd);
             tr.appendChild(durationTd);
