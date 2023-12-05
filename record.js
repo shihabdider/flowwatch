@@ -1,4 +1,10 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById('clearRecords').addEventListener('click', function () {
+        chrome.storage.local.set({ records: [] }, function () {
+            const recordsTableBody = document.getElementById('recordsTable').querySelector('tbody');
+            recordsTableBody.innerHTML = ''; // Clear the table body
+        });
+    });
     chrome.storage.local.get({ records: [] }, function(data) {
         const recordsTableBody = document.getElementById('recordsTable').querySelector('tbody');
         data.records.forEach(function(record) {
@@ -45,7 +51,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const minutes = Math.floor((duration % 3600000) / 60000);
             const seconds = Math.floor((duration % 60000) / 1000);
             const durationStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            csvRows.push(`${startTimeStr},${endTimeStr},${durationStr}`);
+            csvRows.push(`${dateStr},${startTimeStr},${endTimeStr},${durationStr}`);
         });
         return csvRows.join('\n');
     }
