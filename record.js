@@ -3,11 +3,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const recordsTableBody = document.getElementById('recordsTable').querySelector('tbody');
         data.records.forEach(function(record) {
             const tr = document.createElement('tr');
+            const dateTd = document.createElement('td');
             const startTimeTd = document.createElement('td');
             const endTimeTd = document.createElement('td');
             const durationTd = document.createElement('td');
-            const startTimeStr = new Date(record.startTime).toLocaleString();
-            const endTimeStr = new Date(record.endTime).toLocaleString();
+            const startDate = new Date(record.startTime);
+            const endDate = new Date(record.endTime);
+            const dateStr = startDate.toLocaleDateString();
+            const startTimeStr = startDate.toLocaleTimeString();
+            const endTimeStr = endDate.toLocaleTimeString();
+            dateTd.textContent = dateStr;
             const duration = record.elapsedTime;
             const hours = Math.floor(duration / 3600000);
             const minutes = Math.floor((duration % 3600000) / 60000);
@@ -26,11 +31,14 @@ document.addEventListener('DOMContentLoaded', function() {
     function convertToCsv(records) {
         const csvRows = [];
         // Add header
-        csvRows.push('Start Time,End Time,Duration');
+        csvRows.push('Date,Start Time,End Time,Duration');
         // Add records
         records.forEach(function(record) {
-            const startTimeStr = new Date(record.startTime).toLocaleString();
-            const endTimeStr = new Date(record.endTime).toLocaleString();
+            const startDate = new Date(record.startTime);
+            const endDate = new Date(record.endTime);
+            const dateStr = startDate.toLocaleDateString();
+            const startTimeStr = startDate.toLocaleTimeString();
+            const endTimeStr = endDate.toLocaleTimeString();
             const duration = record.elapsedTime;
             const hours = Math.floor(duration / 3600000);
             const minutes = Math.floor((duration % 3600000) / 60000);
