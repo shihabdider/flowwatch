@@ -5,8 +5,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const li = document.createElement('li');
             const startTimeStr = new Date(record.startTime).toLocaleString();
             const endTimeStr = new Date(record.endTime).toLocaleString();
-            const duration = new Date(record.elapsedTime);
-            const durationStr = new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(duration);
+            const duration = record.elapsedTime;
+            const hours = Math.floor(duration / 3600000);
+            const minutes = Math.floor((duration % 3600000) / 60000);
+            const seconds = Math.floor((duration % 60000) / 1000);
+            const durationStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
             li.textContent = `Start: ${startTimeStr}, End: ${endTimeStr}, Duration: ${durationStr}`;
             recordsList.appendChild(li);
         });
