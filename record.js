@@ -3,7 +3,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const recordsList = document.getElementById('recordsList');
         data.records.forEach(function(record) {
             const li = document.createElement('li');
-            li.textContent = `Start: ${record.startTime}, End: ${record.endTime}, Duration: ${record.elapsedTime}ms`;
+            const startTimeStr = new Date(record.startTime).toLocaleString();
+            const endTimeStr = new Date(record.endTime).toLocaleString();
+            const duration = new Date(record.elapsedTime);
+            const durationStr = new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(duration);
+            li.textContent = `Start: ${startTimeStr}, End: ${endTimeStr}, Duration: ${durationStr}`;
             recordsList.appendChild(li);
         });
     });
