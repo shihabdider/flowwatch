@@ -26,8 +26,8 @@ function startStopwatch() {
     clearInterval(stopwatch.timer);
     let endTime = new Date();
     let record = {
-      startTime: new Date(stopwatch.startTime),
-      endTime: endTime,
+      startTime: new Date(stopwatch.startTime).toISOString(),
+      endTime: endTime.toISOString(),
       elapsedTime: stopwatch.elapsedTime
     };
     chrome.storage.local.get({ records: [] }, (data) => {
