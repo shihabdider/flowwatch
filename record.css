@@ -1,9 +1,28 @@
 body {
     font-family: Arial, sans-serif;
+    margin: 40px; /* Added margin space on the sides */
 }
 
 h1 {
     color: #333;
+    text-align: center; /* Centered the title */
+}
+
+table {
+    margin-left: auto; /* Centered the table */
+    margin-right: auto;
+}
+
+button#exportCsv {
+    display: block; /* Make the button a block to fit the content */
+    margin: 20px auto; /* Center the button and add margin */
+    padding: 10px 20px; /* Add padding for better appearance */
+    font-size: 16px; /* Increase font size */
+    cursor: pointer; /* Change cursor to pointer on hover */
+    background-color: #4CAF50; /* Add background color */
+    color: white; /* Change text color to white */
+    border: none; /* Remove border */
+    border-radius: 4px; /* Add border radius for rounded corners */
 }
 
 ul {
