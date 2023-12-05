@@ -20,9 +20,13 @@ td {
     padding: 10px; /* Add padding to create more space between columns */
 }
 
-button#exportCsv, button#clearRecords {
+.button-container {
+    text-align: center; /* Center the container */
+}
+
+.button-container button {
     display: inline-block; /* Make the button inline-block to place side by side */
-    margin: 20px 10px; /* Add margin to the right and left for spacing */
+    margin: 10px; /* Add margin to the right and left for spacing */
     padding: 5px 15px; /* Reduce padding for a smaller button */
     font-size: 14px; /* Reduce font size */
     cursor: pointer; /* Change cursor to pointer on hover */
@@ -31,6 +35,10 @@ button#exportCsv, button#clearRecords {
     border: none; /* Remove border */
     border-radius: 4px; /* Add border radius for rounded corners */
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Add shadow for depth */
+}
+
+.button-container button#clearRecords {
+    background-color: #f44336; /* Keep background color for clear button */
 }
 
 button#clearRecords {
