@@ -11,6 +11,9 @@ h1 {
 table {
     margin-left: auto; /* Centered the table */
     margin-right: auto;
+    font-size: 18px; /* Increased font size for better readability */
+    border-collapse: separate; /* Use separate border spacing */
+    border-spacing: 0 15px; /* Add space between rows */
 }
 
 button#exportCsv {
@@ -23,6 +26,7 @@ button#exportCsv {
     color: white; /* Change text color to white */
     border: none; /* Remove border */
     border-radius: 4px; /* Add border radius for rounded corners */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Add shadow for depth */
 }
 
 ul {
