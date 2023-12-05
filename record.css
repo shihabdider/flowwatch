@@ -16,6 +16,10 @@ table {
     border-spacing: 0 15px; /* Add space between rows */
 }
 
+td {
+    padding: 10px; /* Add padding to create more space between columns */
+}
+
 button#exportCsv {
     display: block; /* Make the button a block to fit the content */
     margin: 20px auto; /* Center the button and add margin */
