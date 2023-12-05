@@ -3,6 +3,12 @@
   "name": "FlowWatch",
   "version": "1.0",
   "description": "A simple stopwatch Chrome extension.",
+  "browser_action": {
+    "default_icon": {
+      "48": "images/icon48.png",
+      "96": "images/icon96.png"
+    }
+  },
   "permissions": [
     "storage",
     "activeTab"
@@ -17,7 +23,5 @@
     "48": "images/icon48.png",
     "96": "images/icon96.png"
   },
-  "web_accessible_resources": [
-    "record.html"
-  ]
+  "options_page": "record.html"
 }
