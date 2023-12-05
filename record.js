@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const li = document.createElement('li');
             const startTimeStr = new Date(record.startTime).toLocaleString();
             const endTimeStr = new Date(record.endTime).toLocaleString();
+            console.log(record.startTime)
             const duration = record.elapsedTime;
             const hours = Math.floor(duration / 3600000);
             const minutes = Math.floor((duration % 3600000) / 60000);
