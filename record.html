@@ -6,24 +6,33 @@
     <link rel="stylesheet" href="record.css">
 </head>
 <body>
-    <h1>FlowWatch Records</h1>
-
-    <table id="recordsTable">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Start</th>
-                <th>End</th>
-                <th>Duration</th>
-            </tr>
-        </thead>
-        <tbody>
-        </tbody>
-    </table>
-    <div class="button-container">
-        <button id="exportCsv">Export as CSV</button>
-        <button id="clearRecords">Clear Records</button>
-    </div>
+    <h1>Options</h1>
+        <div class="switch-container">
+            <label class="switch">
+                <input type="checkbox" id="playAudioToggle">
+                <span class="slider round"></span>
+            </label>
+            <span id="toggleLabel">Binaural Beats</span>
+        </div>
+    <br>
+    <h1>Records</h1>
+        <p id="min-duration-hint">N.B only records times greater than 15 minutes; less is too short for flow</p>
+        <table id="recordsTable">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Start</th>
+                    <th>End</th>
+                    <th>Duration</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+        <div class="button-container">
+            <button id="exportCsv">Export as CSV</button>
+            <button id="clearRecords">Clear Records</button>
+        </div>
     <script src="record.js"></script>
 </body>
 </html>

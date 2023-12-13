@@ -58,7 +58,11 @@ function startStopwatch() {
     }, 100); // Update every 100ms for a more responsive UI
     stopwatch.running = true;
 
-    audio.play();
+    chrome.storage.sync.get('playAudio', (data) => {
+      if(data.playAudio !== false) { // default true if not set
+        audio.play();
+      }
+    });
   } else {
     stopStopwatch();
   }
