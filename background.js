@@ -7,7 +7,7 @@ let stopwatch = {
   minDuration: 15 * 60 * 1000
 };
 
-let audio = new Audio('audio/focus.opus'); // Replace with your actual mp3 file path
+let audio = new Audio('audio/focus_compressed.opus'); // Replace with your actual mp3 file path
 
 function updateIconText(text) {
   chrome.browserAction.setBadgeText({ text: text });

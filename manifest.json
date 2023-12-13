@@ -25,7 +25,7 @@
     "96": "images/icon96.png"
   },
   "web_accessible_resources": [
-    "audio/focus.opus"
+    "audio/focus_compressed.opus"
   ],
   "options_page": "record.html"
 }
