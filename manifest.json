@@ -10,6 +10,7 @@
     }
   },
   "permissions": [
+    "alarms",
     "storage",
     "activeTab"
   ],
@@ -23,5 +24,8 @@
     "48": "images/icon48.png",
     "96": "images/icon96.png"
   },
+  "web_accessible_resources": [
+    "audio/focus.opus"
+  ],
   "options_page": "record.html"
 }
