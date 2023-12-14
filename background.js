@@ -41,6 +41,11 @@ function stopStopwatch(isBreak=false) {
 
 function startStopwatch() {
   if (!stopwatch.running) {
+    chrome.storage.sync.get('newWindow', (data) => {
+        if (data.newWindow !== false) { // default true if not set
+            chrome.windows.create();
+        }
+    });
     stopwatch.startTime = Date.now() - stopwatch.elapsedTime;
     updateIconText('0s'); // Display 0s immediately when the stopwatch starts
     stopwatch.timer = setInterval(() => {
