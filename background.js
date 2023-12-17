@@ -4,7 +4,7 @@ let stopwatch = {
   timer: null,
   running: false,
   maxDuration: 90 * 60 * 1000, // 90 minutes
-  minDuration: 1*1000 //15 * 60 * 1000
+  minDuration: 15 * 60 * 1000
 };
 
 let audio = new Audio('audio/focus_compressed.opus'); // Replace with your actual mp3 file path
