@@ -73,4 +73,13 @@ function startStopwatch() {
   }
 }
 
+chrome.runtime.onInstalled.addListener(function() {
+  chrome.identity.getAuthToken({ 'interactive': false }, function(token) {
+    if (chrome.runtime.lastError || !token) {
+      // No valid token, we are not authorized yet
+      chrome.tabs.create({ url: 'oauth2-init.html' });
+    }
+  });
+});
+
 chrome.browserAction.onClicked.addListener(startStopwatch);
