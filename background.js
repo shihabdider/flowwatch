@@ -25,7 +25,7 @@ function stopStopwatch(isBreak=false) {
   };
 
   // Check if the elapsed time is within the specified constraints
-  if (record.elapsedTime >= stopwatch.minDuration && record.elapsedTime <= stopwatch.maxDuration) {
+  if (record.elapsedTime >= stopwatch.minDuration) {
     // Check if the user has opted to record the stopwatch usage on the calendar
     chrome.storage.sync.get('recordCalendar', (data) => {
         if (data.recordCalendar !== false) { // default true if not set
@@ -33,7 +33,7 @@ function stopStopwatch(isBreak=false) {
             fetchUserTimezone(function(timezone) {
                 // Create an event object for Google Calendar with the fetched timezone
                 let event = {
-                    'summary': 'Focus Time',
+                    'summary': 'Flowwatch',
                     'start': {
                         'dateTime': record.startTime,
                         'timeZone': timezone
