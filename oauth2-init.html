@@ -10,15 +10,6 @@
     <button id="authorize_button">Authorize</button>
     <button id="signout_button" style="display: none;">Sign Out</button>
 
-    <script src="oauth2-init.js"></script>
-    <script>
-        document.getElementById('authorize_button').addEventListener('click', function() {
-            chrome.runtime.sendMessage({action: 'authorize'});
-        });
-
-        document.getElementById('signout_button').addEventListener('click', function() {
-            chrome.runtime.sendMessage({action: 'signout'});
-        });
-    </script>
+    <!-- Inline script moved to oauth2-init.js -->
 </body>
 </html>
