@@ -26,23 +26,28 @@ function stopStopwatch(isBreak=false) {
 
   // Check if the elapsed time is within the specified constraints
   if (record.elapsedTime >= stopwatch.minDuration && record.elapsedTime <= stopwatch.maxDuration) {
-    // Fetch the user's timezone and create the event
-    fetchUserTimezone(function(timezone) {
-      // Create an event object for Google Calendar with the fetched timezone
-      let event = {
-        'summary': 'Focus Time',
-        'start': {
-          'dateTime': record.startTime,
-          'timeZone': timezone
-        },
-        'end': {
-          'dateTime': record.endTime,
-          'timeZone': timezone
-        }
-      };
+    // Check if the user has opted to record the stopwatch usage on the calendar
+    chrome.storage.sync.get('recordCalendar', (data) => {
+        if (data.recordCalendar !== false) { // default true if not set
+            // Fetch the user's timezone and create the event
+            fetchUserTimezone(function(timezone) {
+                // Create an event object for Google Calendar with the fetched timezone
+                let event = {
+                    'summary': 'Focus Time',
+                    'start': {
+                        'dateTime': record.startTime,
+                        'timeZone': timezone
+                    },
+                    'end': {
+                        'dateTime': record.endTime,
+                        'timeZone': timezone
+                    }
+                };
 
-      // Call the function to create the event on Google Calendar with the fetched timezone
-      createGoogleCalendarEvent(event, timezone);
+                // Call the function to create the event on Google Calendar with the fetched timezone
+                createGoogleCalendarEvent(event, timezone);
+            });
+        }
     });
   }
   stopwatch.elapsedTime = 0;
