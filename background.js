@@ -73,6 +73,31 @@ function startStopwatch() {
   }
 }
 
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+    if (request.action === 'authorize') {
+        chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
+            if (chrome.runtime.lastError) {
+                console.error(chrome.runtime.lastError);
+                sendResponse({ token: null });
+            } else {
+                console.log('Token acquired:', token);
+                sendResponse({ token: token });
+            }
+        });
+        return true; // Indicates that the response is asynchronous
+    } else if (request.action === 'signout') {
+        chrome.identity.getAuthToken({ 'interactive': false }, function(currentToken) {
+            if (currentToken) {
+                chrome.identity.removeCachedAuthToken({ 'token': currentToken }, function() {
+                    console.log('Token removed.');
+                    sendResponse({ token: null });
+                });
+            }
+        });
+        return true; // Indicates that the response is asynchronous
+    }
+});
+
 chrome.runtime.onInstalled.addListener(function() {
   chrome.identity.getAuthToken({ 'interactive': false }, function(token) {
     if (chrome.runtime.lastError || !token) {
