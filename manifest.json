@@ -34,5 +34,10 @@
   "web_accessible_resources": [
     "audio/focus_compressed.opus"
   ],
-  "options_page": "record.html"
+  "options_page": "record.html",
+  "web_accessible_resources": [
+    "audio/focus_compressed.opus",
+    "oauth2-init.html",
+    "oauth2-init.js"
+  ]
 }
