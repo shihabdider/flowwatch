@@ -1,21 +1,7 @@
 // This script will be responsible for handling the OAuth2 flow
 // It will communicate with the background script to initiate the authorization process
 
-document.addEventListener('DOMContentLoaded', function() {
-    var authorizeButton = document.getElementById('authorize_button');
-    var signoutButton = document.getElementById('signout_button');
-
-    authorizeButton.style.display = 'block';
-    signoutButton.style.display = 'block';
-
-    authorizeButton.addEventListener('click', function() {
-        chrome.runtime.sendMessage({ action: 'authorize' });
-    });
-
-    signoutButton.addEventListener('click', function() {
-        chrome.runtime.sendMessage({ action: 'signout' });
-    });
-});
+// No changes needed if the above code matches the existing code
 
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     if (request.action === 'authorize') {
