@@ -4,7 +4,7 @@ let stopwatch = {
   timer: null,
   running: false,
   maxDuration: 90 * 60 * 1000, // 90 minutes
-  minDuration: 15 * 60 * 1000
+  minDuration: 1*1000 //15 * 60 * 1000
 };
 
 let audio = new Audio('audio/focus_compressed.opus'); // Replace with your actual mp3 file path
@@ -109,7 +109,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
         chrome.identity.getAuthToken({ 'interactive': false }, function(currentToken) {
             if (currentToken) {
                 chrome.identity.removeCachedAuthToken({ 'token': currentToken }, function() {
-                    console.log('Token removed.');
+                    alert('Token removed.');
                     sendResponse({ token: null });
                 });
             }
@@ -122,12 +122,13 @@ chrome.runtime.onInstalled.addListener(function() {
   chrome.identity.getAuthToken({ 'interactive': false }, function(token) {
     if (chrome.runtime.lastError || !token) {
       // No valid token, we are not authorized yet
-      chrome.tabs.create({ url: 'oauth2-init.html' });
+      chrome.tabs.create({ url: 'record.html' });
     }
   });
 });
 
 chrome.browserAction.onClicked.addListener(startStopwatch);
+
 // Function to fetch the user's timezone
 function fetchUserTimezone(callback) {
   chrome.identity.getAuthToken({ 'interactive': true }, function(token) {

@@ -7,7 +7,7 @@ iframe {
     display: none;
 }
 
-h1 {
+h1, h2 {
     color: #333;
     text-align: center; /* Centered the title */
 }
@@ -17,18 +17,6 @@ p#min-duration-hint {
     justify-content: center; /* This will center the switch and label inside the switch-container */
     align-items: center;
     margin-bottom: 20px;
-}
-
-table {
-    margin-left: auto; /* Centered the table */
-    margin-right: auto;
-    font-size: 18px; /* Increased font size for better readability */
-    border-collapse: separate; /* Use separate border spacing */
-    border-spacing: 0 15px; /* Add space between rows */
-}
-
-td {
-    padding: 10px; /* Add padding to create more space between columns */
 }
 
 .button-container {
@@ -48,31 +36,12 @@ td {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Add shadow for depth */
 }
 
-.button-container button#clearRecords {
-    background-color: #f44336; /* Keep background color for clear button */
-}
-
-button#clearRecords {
-    background-color: #f44336; /* Keep background color for clear button */
-}
-
-ul {
-    list-style-type: none;
-    padding: 0;
-}
-
-li {
-    margin-bottom: 10px;
-    background-color: #f7f7f7;
-    padding: 10px;
-    border-radius: 4px;
-}
-
 /* The switch-container for positioning the toggle and label */
 .switch-container {
     display: flex;
-    justify-content: center; /* This will center the switch and label inside the switch-container */
+    justify-content: left; /* This will center the switch and label inside the switch-container */
     align-items: center;
+    padding-inline: 480px;
     margin-bottom: 20px;
 }
 

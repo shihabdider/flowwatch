@@ -37,8 +37,6 @@
   "options_page": "record.html",
   "content_security_policy": "script-src 'self'; object-src 'self'",
   "web_accessible_resources": [
-    "audio/focus_compressed.opus",
-    "oauth2-init.html",
-    "oauth2-init.js"
+    "audio/focus_compressed.opus"
   ]
 }

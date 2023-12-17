@@ -34,25 +34,6 @@ document.addEventListener('DOMContentLoaded', function() {
         chrome.storage.sync.set({ 'recordCalendar': recordCalendarToggle.checked });
     });
 
-    // Add event listeners to the buttons for OAuth
-    document.getElementById('authorize_button').addEventListener('click', function() {
-        chrome.runtime.sendMessage({action: 'authorize'});
-    });
-
-    document.getElementById('signout_button').addEventListener('click', function() {
-        chrome.runtime.sendMessage({action: 'signout'});
-    });
-
-    // Update the display of the signout button based on the authorization state
-    chrome.identity.getAuthToken({ 'interactive': false }, function(token) {
-        if (token) {
-            document.getElementById('authorize_button').style.display = 'none';
-            document.getElementById('signout_button').style.display = 'inline-block';
-        } else {
-            document.getElementById('authorize_button').style.display = 'inline-block';
-            document.getElementById('signout_button').style.display = 'none';
-        }
-    });
     const playAudioToggle = document.getElementById('playAudioToggle');
 
     // Restore the state of the toggle from storage
