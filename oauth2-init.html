@@ -7,7 +7,18 @@
 </head>
 <body>
     <h1>Google Calendar Integration</h1>
-    <button id="authorize_button" style="display: none;">Authorize</button>
+    <button id="authorize_button">Authorize</button>
     <button id="signout_button" style="display: none;">Sign Out</button>
+
+    <script src="oauth2-init.js"></script>
+    <script>
+        document.getElementById('authorize_button').addEventListener('click', function() {
+            chrome.runtime.sendMessage({action: 'authorize'});
+        });
+
+        document.getElementById('signout_button').addEventListener('click', function() {
+            chrome.runtime.sendMessage({action: 'signout'});
+        });
+    </script>
 </body>
 </html>
