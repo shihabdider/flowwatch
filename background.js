@@ -26,21 +26,24 @@ function stopStopwatch(isBreak=false) {
 
   // Check if the elapsed time is within the specified constraints
   if (record.elapsedTime >= stopwatch.minDuration && record.elapsedTime <= stopwatch.maxDuration) {
-    // Create an event object for Google Calendar
-    let event = {
-      'summary': 'Focus Time',
-      'start': {
-        'dateTime': record.startTime,
-        'timeZone': 'America/Los_Angeles' // Replace with the user's actual timezone
-      },
-      'end': {
-        'dateTime': record.endTime,
-        'timeZone': 'America/Los_Angeles' // Replace with the user's actual timezone
-      }
-    };
+    // Fetch the user's timezone and create the event
+    fetchUserTimezone(function(timezone) {
+      // Create an event object for Google Calendar with the fetched timezone
+      let event = {
+        'summary': 'Focus Time',
+        'start': {
+          'dateTime': record.startTime,
+          'timeZone': timezone
+        },
+        'end': {
+          'dateTime': record.endTime,
+          'timeZone': timezone
+        }
+      };
 
-    // Call the function to create the event on Google Calendar
-    createGoogleCalendarEvent(event);
+      // Call the function to create the event on Google Calendar with the fetched timezone
+      createGoogleCalendarEvent(event, timezone);
+    });
   }
   stopwatch.elapsedTime = 0;
   if (isBreak) {
@@ -120,8 +123,39 @@ chrome.runtime.onInstalled.addListener(function() {
 });
 
 chrome.browserAction.onClicked.addListener(startStopwatch);
-// Function to create an event on Google Calendar
-function createGoogleCalendarEvent(event) {
+// Function to fetch the user's timezone
+function fetchUserTimezone(callback) {
+  chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
+    if (chrome.runtime.lastError) {
+      console.error(chrome.runtime.lastError);
+      return;
+    }
+
+    // Define the API request parameters
+    let init = {
+      method: 'GET',
+      async: true,
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
+    };
+
+    // Make the API request to get the user's settings
+    fetch('https://www.googleapis.com/calendar/v3/users/me/settings/timezone', init)
+      .then((response) => response.json())
+      .then(function(data) {
+        console.log('User timezone:', data);
+        callback(data.value); // Pass the timezone to the callback
+      })
+      .catch(function(error) {
+        console.error('Error fetching user timezone:', error);
+      });
+  });
+}
+
+// Function to create an event on Google Calendar with the user's timezone
+function createGoogleCalendarEvent(event, timezone) {
   chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
     if (chrome.runtime.lastError) {
       console.error(chrome.runtime.lastError);
