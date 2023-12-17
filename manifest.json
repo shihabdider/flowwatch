@@ -39,7 +39,6 @@
   "web_accessible_resources": [
     "audio/focus_compressed.opus",
     "oauth2-init.html",
-    "oauth2-init.js",
-    "oauth2-init-page.js"
+    "oauth2-init.js"
   ]
 }
