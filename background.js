@@ -24,11 +24,23 @@ function stopStopwatch(isBreak=false) {
     elapsedTime: stopwatch.elapsedTime
   };
 
-  if (record.elapsedTime > stopwatch.minDuration) {
-    chrome.storage.local.get({ records: [] }, (data) => {
-      data.records.push(record);
-      chrome.storage.local.set({ records: data.records });
-    });
+  // Check if the elapsed time is within the specified constraints
+  if (record.elapsedTime >= stopwatch.minDuration && record.elapsedTime <= stopwatch.maxDuration) {
+    // Create an event object for Google Calendar
+    let event = {
+      'summary': 'Focus Time',
+      'start': {
+        'dateTime': record.startTime,
+        'timeZone': 'America/Los_Angeles' // Replace with the user's actual timezone
+      },
+      'end': {
+        'dateTime': record.endTime,
+        'timeZone': 'America/Los_Angeles' // Replace with the user's actual timezone
+      }
+    };
+
+    // Call the function to create the event on Google Calendar
+    createGoogleCalendarEvent(event);
   }
   stopwatch.elapsedTime = 0;
   if (isBreak) {
@@ -108,3 +120,34 @@ chrome.runtime.onInstalled.addListener(function() {
 });
 
 chrome.browserAction.onClicked.addListener(startStopwatch);
+// Function to create an event on Google Calendar
+function createGoogleCalendarEvent(event) {
+  chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
+    if (chrome.runtime.lastError) {
+      console.error(chrome.runtime.lastError);
+      return;
+    }
+
+    // Define the API request parameters
+    let init = {
+      method: 'POST',
+      async: true,
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
+      'body': JSON.stringify(event),
+      'contentType': 'json'
+    };
+
+    // Make the API request to create the event
+    fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', init)
+      .then((response) => response.json())
+      .then(function(data) {
+        console.log('Created Google Calendar event:', data);
+      })
+      .catch(function(error) {
+        console.error('Error creating Google Calendar event:', error);
+      });
+  });
+}
