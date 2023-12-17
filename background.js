@@ -108,10 +108,21 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     } else if (request.action === 'signout') {
         chrome.identity.getAuthToken({ 'interactive': false }, function(currentToken) {
             if (currentToken) {
-                chrome.identity.removeCachedAuthToken({ 'token': currentToken }, function() {
-                    alert('Token removed.');
-                    sendResponse({ token: null });
+                // Invalidate the token in the Google's authorization server
+                fetch(`https://accounts.google.com/o/oauth2/revoke?token=${currentToken}`, {
+                    method: 'POST'
+                }).then(() => {
+                    // Remove the token from the cache
+                    chrome.identity.removeCachedAuthToken({ 'token': currentToken }, function() {
+                        alert('Token removed. Please reload the extension.');
+                        sendResponse({ token: null });
+                    });
+                }).catch(error => {
+                    console.error('Sign out error:', error);
                 });
+            } else {
+                alert('No token found.');
+                sendResponse({ token: null });
             }
         });
         return true; // Indicates that the response is asynchronous
