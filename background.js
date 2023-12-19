@@ -68,6 +68,17 @@ function startStopwatch() {
     });
     stopwatch.startTime = Date.now() - stopwatch.elapsedTime;
     updateIconText('0s'); // Display 0s immediately when the stopwatch starts
+    // Fetch the next calendar event
+    fetchNextCalendarEvent(nextEventStartTime => {
+      // If there is an event before the max duration, set a timeout to stop the stopwatch
+      if (nextEventStartTime && nextEventStartTime < new Date(stopwatch.startTime + stopwatch.maxDuration)) {
+        let timeUntilEvent = nextEventStartTime.getTime() - Date.now();
+        setTimeout(() => {
+          stopStopwatch();
+        }, timeUntilEvent);
+      }
+    });
+
     stopwatch.timer = setInterval(() => {
       stopwatch.elapsedTime = Date.now() - stopwatch.startTime;
       
@@ -129,6 +140,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     }
 });
 
+// Add a listener for the runtime.onInstalled event to handle any setup when the extension is installed or updated
 chrome.runtime.onInstalled.addListener(function() {
   chrome.identity.getAuthToken({ 'interactive': false }, function(token) {
     if (chrome.runtime.lastError || !token) {
@@ -140,8 +152,47 @@ chrome.runtime.onInstalled.addListener(function() {
 
 chrome.browserAction.onClicked.addListener(startStopwatch);
 
+// Helper function to fetch the next calendar event
+function fetchNextCalendarEvent(callback) {
+  chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
+    if (chrome.runtime.lastError) {
+      console.error(chrome.runtime.lastError);
+      return;
+    }
+
+    let timeMin = new Date().toISOString(); // Current time in ISO format
+    let timeMax = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours from now
+
+    // Define the API request parameters
+    let init = {
+      method: 'GET',
+      async: true,
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
+      'contentType': 'json'
+    };
+
+    // Make the API request to get the next event
+    fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`, init)
+      .then((response) => response.json())
+      .then(function(data) {
+        if (data.items && data.items.length > 0) {
+          // Find the next event that is not an all-day event
+          let nextEvent = data.items.find(event => event.start.dateTime);
+          if (nextEvent) {
+            callback(new Date(nextEvent.start.dateTime)); // Pass the start time of the next event to the callback
+          }
+        }
+      })
+      .catch(function(error) {
+        console.error('Error fetching next calendar event:', error);
+      });
+  });
+}
+
 // Function to fetch the user's timezone
-function fetchUserTimezone(callback) {
   chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
     if (chrome.runtime.lastError) {
       console.error(chrome.runtime.lastError);
