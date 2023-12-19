@@ -74,7 +74,7 @@ function startStopwatch() {
       if (nextEventStartTime && nextEventStartTime < new Date(stopwatch.startTime + stopwatch.maxDuration)) {
         let timeUntilEvent = nextEventStartTime.getTime() - Date.now();
         setTimeout(() => {
-          stopStopwatch();
+          stopStopwatch(isBreak=true);
         }, timeUntilEvent);
       }
     });
@@ -161,7 +161,7 @@ function fetchNextCalendarEvent(callback) {
     }
 
     let timeMin = new Date().toISOString(); // Current time in ISO format
-    let timeMax = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours from now
+    let timeMax = new Date(Date.now() + stopwatch.maxDuration).toISOString(); // maxDuration from now
 
     // Define the API request parameters
     let init = {
@@ -193,6 +193,7 @@ function fetchNextCalendarEvent(callback) {
 }
 
 // Function to fetch the user's timezone
+function fetchUserTimezone(callback) {
   chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
     if (chrome.runtime.lastError) {
       console.error(chrome.runtime.lastError);
