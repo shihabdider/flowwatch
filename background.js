@@ -68,8 +68,36 @@ function startStopwatch() {
     });
     stopwatch.startTime = Date.now() - stopwatch.elapsedTime;
     updateIconText('0s'); // Display 0s immediately when the stopwatch starts
-    // Fetch the next calendar event
-    fetchNextCalendarEvent(nextEventStartTime => {
+    // Fetch all visible calendar IDs
+    fetchCalendarList(calendarIds => {
+      let eventPromises = calendarIds.map(calendarId => {
+        return new Promise((resolve, reject) => {
+          fetchNextCalendarEvent(calendarId, timeMin, timeMax, nextEventStartTime => {
+            if (nextEventStartTime) {
+              resolve(nextEventStartTime);
+            } else {
+              resolve(null);
+            }
+          });
+        });
+      });
+
+      Promise.all(eventPromises).then(eventStartTimes => {
+        let earliestEventStartTime = eventStartTimes
+          .filter(eventStartTime => eventStartTime !== null)
+          .sort((a, b) => a.getTime() - b.getTime())[0];
+
+        // If there is an event before the max duration, set a timeout to stop the stopwatch
+        if (earliestEventStartTime && earliestEventStartTime < new Date(stopwatch.startTime + stopwatch.maxDuration)) {
+          let timeUntilEvent = earliestEventStartTime.getTime() - Date.now();
+          setTimeout(() => {
+            stopStopwatch(isBreak=true);
+          }, timeUntilEvent);
+        }
+      });
+    });
+
+    stopwatch.timer = setInterval(() => {
       // If there is an event before the max duration, set a timeout to stop the stopwatch
       if (nextEventStartTime && nextEventStartTime < new Date(stopwatch.startTime + stopwatch.maxDuration)) {
         let timeUntilEvent = nextEventStartTime.getTime() - Date.now();
@@ -152,8 +180,40 @@ chrome.runtime.onInstalled.addListener(function() {
 
 chrome.browserAction.onClicked.addListener(startStopwatch);
 
-// Helper function to fetch the next calendar event
-function fetchNextCalendarEvent(callback) {
+// Helper function to fetch all visible calendar IDs
+function fetchCalendarList(callback) {
+  chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
+    if (chrome.runtime.lastError) {
+      console.error(chrome.runtime.lastError);
+      return;
+    }
+
+    let init = {
+      method: 'GET',
+      async: true,
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
+      'contentType': 'json'
+    };
+
+    fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', init)
+      .then((response) => response.json())
+      .then(function(data) {
+        let calendarIds = data.items
+          .filter(calendar => calendar.selected) // Only consider selected (visible) calendars
+          .map(calendar => calendar.id);
+        callback(calendarIds);
+      })
+      .catch(function(error) {
+        console.error('Error fetching calendar list:', error);
+      });
+  });
+}
+
+// Modified helper function to fetch the next calendar event from a specific calendar
+function fetchNextCalendarEvent(calendarId, timeMin, timeMax, callback) {
   chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
     if (chrome.runtime.lastError) {
       console.error(chrome.runtime.lastError);
@@ -175,7 +235,7 @@ function fetchNextCalendarEvent(callback) {
     };
 
     // Make the API request to get the next event
-    fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`, init)
+    fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`, init)
       .then((response) => response.json())
       .then(function(data) {
         if (data.items && data.items.length > 0) {
