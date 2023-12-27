@@ -3,6 +3,7 @@
   "name": "FlowWatch",
   "version": "1.0",
   "description": "A stopwatch Chrome extension with Google Calendar integration.",
+  "key": "MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCZpVqeC+LHWMetse+eY/uBpbVF/PX09iQT/H4d5nWuMNLWqTcCpy2oG63VfLKANmZfouSMNLiP0DGLKlzO/yfeEX45hyPtaGNr8+8T1uDmu6sAVHVZOEfClm75LNYLuGk3xFHeCPEKi9GsoY2i9K0Bfmvp80It8w4LoVITG8UxkruF1QJy3pI4J+2So8/qX54CVO1DqSNojAINxEGhUbrzOEVc5CC5Xb4jVMjA8v2h+pNfWRZVZ6uW9kDxFOITz4GJBJVLSuCVDC2Gv3OVwdBissGWlBiBiUBFLftkfdDNwYGMSSnhGQqDI3JA0mXqDggfMbK44t6vJOricJW4nlGVAgMBAAECggEAAunr6RCvvT9duAyzQkVCO4aKN8VqkuAitbgfDY+b8Z2U6tCJZ2HTjJTYmNjoZLFdAyX9oHtBrCtS75q/ArqIuPe+QlAh09dPM8VyP8wEw1nRp7jlg2qwRH+VI3rgpOPBwRA8y9GbfdHCSSKq/Jxk9iDw4hF3xfnORu7izzoPWD3ypihahnLEo++0TIAjHYQkPFiqqMT5QLsvtIR/MwhMO0WD29UBQ3GB/bbOD1MGIIkztUiaESbN7wTXlZy5QUvYgiPTGxi1jQVYrTvE0l3j8yzQKRuJ4jlyH8CC50w+AT6y3KkwsKt3TAM4jCh4KIKpsF6SjYk9n1soEoxnYpXoSQKBgQDOSor0jGnILVdDKXQLlE6+YH7DZnHf41obl2obwlutuA9wMEoX4ed91Q5wAMGciraz4mV2UrDVltMo08wu5VusNUJkML2Vn7gcPL8OP/jDCUlsPnR45Wb871g62PfH+SJfIxYXSRjVPK97+vyv6LL6DokV+GFEtMMoyUzPMaGwmQKBgQC+q0oUFERi/Y0bnZHZufF+DXBovekkVY3sfyWhW/BiaM4Sjmr9c47hC/C6FwwDuAu0Nw0IRqwbhg8NRMya1KqaGeHXWsseIZqdlcA+K9siM4zLpL9hyGm/gnvXbWPM5L+9Rg8mWvU53NWAOyQc+lu+vxwJs88b+1qyk6PN/GK6XQKBgDtrUzz/WNTU4oaw4QEY1dmWN80WrAQ+G01JPsICKKAQHTpGXoEki6Y+ASuXvCzX86o6stjzFoZfLDFdWDnFzLL8oEP1mhYH7GMNyEZVfNTIzwJDtw6/nPuMAVDp/+z0wMbAd3N7lZCOK0m90JzmnO7T0v6mDXZZzsDnwp0Hgbg5AoGAREAGJUfX7uM5tm/hvGD925Qt76BDKxlg0w30R10kn+VKFoRaMd1CgLYIdmQ3jcE8l0a5aIP7qWKEUsiUwLttUfn/yFmcqW137f6jsN179DMlq+OOCg92IvIvKD7k4XvkUnkYhS875nlxBxSkaacIXjAEdkih0y9XGOMWWG6GXJUCgYB2S27hGqc525fl27hWLtMKzlFtKix/Dn73bha/ZqtnWz6JY8Pr6GfzWDjpvgcVpFHt69mCs4W4lZGAh92ZBT4qDLBcWs+pcGKbEjvQfm0ChOt7cN4Wi5hwVK6MvSiU0xNw1TCElTyybmGUmoocEQ0ukcYwLVudLe2dcLU3UNYl8A==",
   "browser_action": {
     "default_icon": {
       "48": "images/icon48.png",
@@ -16,7 +17,7 @@
     "identity"
   ],
   "oauth2": {
-    "client_id": "831012186265-77mueug86fvaa1hh5af7ad4vh6gvvllk.apps.googleusercontent.com",
+    "client_id": "831012186265-2nql9kresh3o4nkf4udrjprnqns0rpec.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/calendar"
     ]

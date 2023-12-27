@@ -198,7 +198,7 @@ function fetchCalendarList(callback) {
       'contentType': 'json'
     };
 
-    fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', init)
+    fetch('https://www.googleapis.com/calendar/v4/users/me/calendarList', init)
       .then((response) => response.json())
       .then(function(data) {
         let calendarIds = data.items
