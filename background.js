@@ -78,17 +78,18 @@ function startStopwatch() {
     updateIconText('0s'); // Display 0s immediately when the stopwatch starts
     // Fetch all visible calendar IDs
     fetchCalendarList(calendarIds => {
-      let eventPromises = calendarIds.map(calendarId => {
-        return new Promise((resolve, reject) => {
-          fetchNextCalendarEvent(calendarId, timeMin, timeMax, nextEventStartTime => {
-            if (nextEventStartTime) {
-              resolve(nextEventStartTime);
-            } else {
-              resolve(null);
-            }
+        let eventPromises = calendarIds.map(calendarId => {
+          return new Promise((resolve, reject) => {
+            fetchNextCalendarEvent(calendarId, timeMin, timeMax, nextEventStartTime => {
+              if (nextEventStartTime) {
+                resolve(nextEventStartTime);
+              } else {
+                resolve(null);
+              }
+            });
           });
         });
-      });
+      })
 
       Promise.all(eventPromises).then(eventStartTimes => {
         let earliestEventStartTime = eventStartTimes
@@ -141,8 +142,8 @@ function startStopwatch() {
 }
 
 function setupLearningMode() {
-    const averageInterval = 120000; // 2 minutes in milliseconds
-    const variation = 30000; // 30 seconds variation
+    const averageInterval = 2*60*1000; // 2 minutes in milliseconds
+    const variation = 30*1000; // 30 seconds variation
     function triggerLearningModeEvent() {
         let randomInterval = Math.random() * variation * 2 - variation + averageInterval;
         learningModeInterval = setTimeout(() => {
@@ -154,7 +155,7 @@ function setupLearningMode() {
                     audio.play();
                 }
                 triggerLearningModeEvent();
-            }, 10000); // Pause the focus audio for 10 seconds
+            }, 10*1000); // Pause the focus audio for 10 seconds
         }, randomInterval);
     }
     triggerLearningModeEvent();
