@@ -15,6 +15,7 @@ function updateIconText(text) {
 
 function stopStopwatch(isBreak=false) {
   clearInterval(stopwatch.timer);
+  stopLearningMode();
   stopwatch.running = false;
   updateIconText('');
   let endTime = new Date();
@@ -59,11 +60,18 @@ function stopStopwatch(isBreak=false) {
   audio.currentTime = 0;
 }
 
+let learningModeInterval;
+
 function startStopwatch() {
   if (!stopwatch.running) {
+    chrome.storage.sync.get(['newWindow', 'learningMode'], (data) => {
     chrome.storage.sync.get('newWindow', (data) => {
         if (data.newWindow !== false) { // default true if not set
             chrome.windows.create();
+        }
+        if (data.learningMode === true) {
+            // Set up the learning mode interval
+            setupLearningMode();
         }
     });
     stopwatch.startTime = Date.now() - stopwatch.elapsedTime;
@@ -130,6 +138,30 @@ function startStopwatch() {
   } else {
     stopStopwatch();
   }
+}
+
+function setupLearningMode() {
+    const averageInterval = 120000; // 2 minutes in milliseconds
+    const variation = 30000; // 30 seconds variation
+    function triggerLearningModeEvent() {
+        let randomInterval = Math.random() * variation * 2 - variation + averageInterval;
+        learningModeInterval = setTimeout(() => {
+            let alertSound = new Audio('audio/alarm.wav');
+            audio.pause();
+            alertSound.play();
+            setTimeout(() => {
+                if (stopwatch.running) {
+                    audio.play();
+                }
+                triggerLearningModeEvent();
+            }, 10000); // Pause the focus audio for 10 seconds
+        }, randomInterval);
+    }
+    triggerLearningModeEvent();
+}
+
+function stopLearningMode() {
+    clearTimeout(learningModeInterval);
 }
 
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {

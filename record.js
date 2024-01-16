@@ -55,4 +55,16 @@ document.addEventListener('DOMContentLoaded', function() {
     newWindowToggle.addEventListener('change', () => {
         chrome.storage.sync.set({ 'newWindow': newWindowToggle.checked });
     });
+
+    const learningModeToggle = document.getElementById('learningModeToggle');
+
+    // Restore the state of the toggle from storage
+    chrome.storage.sync.get('learningMode', (data) => {
+        learningModeToggle.checked = data.learningMode === true; // default false if not set
+    });
+
+    // Listen for toggle switch changes and save the state
+    learningModeToggle.addEventListener('change', () => {
+        chrome.storage.sync.set({ 'learningMode': learningModeToggle.checked });
+    });
 });
