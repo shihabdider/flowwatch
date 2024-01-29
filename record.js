@@ -78,10 +78,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 let flowwatchEvents = response.events.map(event => {
                     let startTime = new Date(event.start.dateTime);
                     let endTime = new Date(event.end.dateTime);
-                    let durationHours = (endTime - startTime) / (1000 * 60 * 60);
+                    let durationHours = ((endTime - startTime) / (1000 * 60 * 60)).toPrecision(4);
                     return {
                         date: startTime.toISOString().split('T')[0],
-                        value: parseFloat(durationHours.toFixed(2))
+                        value: parseFloat(durationHours)
                     };
                 });
                 const cal = new CalHeatmap();
