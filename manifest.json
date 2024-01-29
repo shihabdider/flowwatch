@@ -38,6 +38,7 @@
   ],
   "options_page": "record.html",
   "content_security_policy": "script-src 'self' https://d3js.org; object-src 'self'",
+  "content_security_policy": "script-src 'self' https://d3js.org https://unpkg.com; object-src 'self'",
   "web_accessible_resources": [
     "audio/focus_compressed.opus"
   ]
