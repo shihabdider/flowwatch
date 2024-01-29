@@ -119,9 +119,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             Tooltip,
                             {
                                 text: function (date, value, dayjsDate) {
-                                    return (
-                                        (value ? value + ' hours' : 'No data') + ' on week of ' + dayjsDate.format('MM-DD')
-                                    );
+                                    let displayValue = value ? parseFloat(value).toFixed(2) : 'No data';
+                                    return `${displayValue} hours on week of ${dayjsDate.format('MM-DD')}`;
                                 },
                             },
                         ],

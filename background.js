@@ -223,6 +223,7 @@ function fetchFlowwatchEventsFromCalendar(callback) {
             });
     });
 }
+
 // Add a listener for the runtime.onInstalled event to handle any setup when the extension is installed or updated
 chrome.runtime.onInstalled.addListener(function() {
   chrome.identity.getAuthToken({ 'interactive': false }, function(token) {

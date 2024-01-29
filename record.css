@@ -111,3 +111,9 @@ input:checked + .slider:before {
 #toggleLabel {
   margin-left: 10px;
 }
+
+#cal-heatmap {
+  display: flex;
+  justify-content: center;
+  padding-top: 24px;
+}
