@@ -23,6 +23,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // ... existing code ...
+
     const recordCalendarToggle = document.getElementById('recordCalendarToggle');
 
     // Restore the state of the toggle from storage
@@ -87,6 +89,26 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         verticalOrientation: true,
     });
+
+    // Function to retrieve all calendar events since the start of the year with "flowwatch" in their summary
+    function fetchFlowwatchEvents() {
+        chrome.runtime.sendMessage({action: 'fetchFlowwatchEvents'}, function(response) {
+            if (response && response.events) {
+                let flowwatchEvents = response.events.map(event => {
+                    let startTime = new Date(event.start.dateTime);
+                    let endTime = new Date(event.end.dateTime);
+                    let durationHours = (endTime - startTime) / (1000 * 60 * 60);
+                    return {
+                        date: startTime.toISOString().split('T')[0],
+                        value: parseFloat(durationHours.toFixed(2))
+                    };
+                });
+                // Use flowwatchEvents as needed
+                console.log(flowwatchEvents);
+            }
+        });
+    }
+
+    // Call the function to fetch events
+    fetchFlowwatchEvents();
 });
-
-
