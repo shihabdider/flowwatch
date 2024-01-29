@@ -78,19 +78,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 let flowwatchEvents = response.events.map(event => {
                     let startTime = new Date(event.start.dateTime);
                     let endTime = new Date(event.end.dateTime);
-                    let durationHours = ((endTime - startTime) / (1000 * 60 * 60)).toPrecision(4);
+                    let durationHours = ((endTime - startTime) / (1000 * 60 * 60)).toPrecision(2);
                     return {
                         date: startTime.toISOString().split('T')[0],
                         value: parseFloat(durationHours)
                     };
                 });
+                console.log(flowwatchEvents);
                 const cal = new CalHeatmap();
                 cal.paint({
                     data: {
                         source: flowwatchEvents, 
                         x: 'date',
                         y: 'value',
-                        groupY: 'sum', 
                     },
                     domain: { 
                         type: 'month', 
@@ -106,15 +106,21 @@ document.addEventListener('DOMContentLoaded', function() {
                         height: 20,
                         width: 20,
                     },
+                    scale: {
+                        color: {
+                            scheme: 'BuPu',
+                            domain: [0, 40],
+                        },
+                    },
                     verticalOrientation: true,
                 }, 
                     [
                         [
                             Tooltip,
                             {
-                                text: function (date, value) {
+                                text: function (date, value, dayjsDate) {
                                     return (
-                                        (value ? value + 'h' : 'No data') 
+                                        (value ? value + ' hours' : 'No data') + ' on week of ' + dayjsDate.format('MM-DD')
                                     );
                                 },
                             },
