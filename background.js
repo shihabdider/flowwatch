@@ -185,9 +185,44 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
             }
         });
         return true; // Indicates that the response is asynchronous
+    } else if (request.action === 'fetchFlowwatchEvents') {
+        fetchFlowwatchEventsFromCalendar(sendResponse);
+        return true; // Indicates that the response is asynchronous
     }
 });
 
+// Function to fetch all calendar events since the start of the year with "flowwatch" in their summary
+function fetchFlowwatchEventsFromCalendar(callback) {
+    chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
+        if (chrome.runtime.lastError) {
+            console.error(chrome.runtime.lastError);
+            return;
+        }
+
+        let now = new Date();
+        let startOfYear = new Date(now.getFullYear(), 0, 1).toISOString(); // January 1st of the current year
+
+        let init = {
+            method: 'GET',
+            async: true,
+            headers: {
+                'Authorization': 'Bearer ' + token,
+                'Content-Type': 'application/json'
+            },
+            'contentType': 'json'
+        };
+
+        fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${startOfYear}&q=flowwatch&singleEvents=true&orderBy=startTime`, init)
+            .then((response) => response.json())
+            .then(function(data) {
+                let events = data.items || [];
+                callback({ events: events });
+            })
+            .catch(function(error) {
+                console.error('Error fetching events:', error);
+            });
+    });
+}
 // Add a listener for the runtime.onInstalled event to handle any setup when the extension is installed or updated
 chrome.runtime.onInstalled.addListener(function() {
   chrome.identity.getAuthToken({ 'interactive': false }, function(token) {
