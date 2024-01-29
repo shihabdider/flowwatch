@@ -231,7 +231,7 @@ function fetchCalendarList(callback) {
       'contentType': 'json'
     };
 
-    fetch('https://www.googleapis.com/calendar/v4/users/me/calendarList', init)
+    fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', init)
       .then((response) => response.json())
       .then(function(data) {
         let calendarIds = data.items
@@ -264,7 +264,8 @@ function fetchNextCalendarEvent(calendarId, timeMin, timeMax, callback) {
         'Authorization': 'Bearer ' + token,
         'Content-Type': 'application/json'
       },
-      'contentType': 'json'
+      'contentType': 'json',
+      'mode': 'no-cors'
     };
 
     // Make the API request to get the next event
