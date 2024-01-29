@@ -65,7 +65,6 @@ let learningModeInterval;
 function startStopwatch() {
   if (!stopwatch.running) {
     chrome.storage.sync.get(['newWindow', 'learningMode'], (data) => {
-    chrome.storage.sync.get('newWindow', (data) => {
         if (data.newWindow !== false) { // default true if not set
             chrome.windows.create();
         }
@@ -89,7 +88,7 @@ function startStopwatch() {
             });
           });
         });
-      })
+      });
 
       Promise.all(eventPromises).then(eventStartTimes => {
         let earliestEventStartTime = eventStartTimes
@@ -97,7 +96,18 @@ function startStopwatch() {
           .sort((a, b) => a.getTime() - b.getTime())[0];
 
         // If there is an event before the max duration, set a timeout to stop the stopwatch
-        if (earliestEventStartTime && earliestEventStartTime < new Date(stopwatch.startTime + stopwatch.maxDuration)) {
+        if (earliestEventStartTime) {
+          if (earliestEventStartTime < new Date(stopwatch.startTime + stopwatch.maxDuration)) {
+            let timeUntilEvent = earliestEventStartTime.getTime() - Date.now();
+            setTimeout(() => {
+              stopStopwatch(isBreak=true);
+            }, timeUntilEvent);
+          }
+        } else {
+          // If there are no upcoming events, set a timeout for the max duration
+          setTimeout(() => {
+            stopStopwatch(isBreak=true);
+          }, stopwatch.maxDuration);
           let timeUntilEvent = earliestEventStartTime.getTime() - Date.now();
           setTimeout(() => {
             stopStopwatch(isBreak=true);
@@ -119,6 +129,8 @@ function startStopwatch() {
     stopwatch.timer = setInterval(() => {
       stopwatch.elapsedTime = Date.now() - stopwatch.startTime;
       
+      stopwatch.elapsedTime = Date.now() - stopwatch.startTime;
+
       if (stopwatch.elapsedTime >= stopwatch.maxDuration) {
         stopStopwatch(isBreak=true);
       } else {
