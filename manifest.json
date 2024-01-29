@@ -14,7 +14,8 @@
     "alarms",
     "storage",
     "activeTab",
-    "identity"
+    "identity",
+     "https://www.googleapis.com/"
   ],
   "oauth2": {
     "client_id": "831012186265-2nql9kresh3o4nkf4udrjprnqns0rpec.apps.googleusercontent.com",

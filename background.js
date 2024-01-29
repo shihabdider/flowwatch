@@ -73,64 +73,39 @@ function startStopwatch() {
             setupLearningMode();
         }
     });
+
     stopwatch.startTime = Date.now() - stopwatch.elapsedTime;
     updateIconText('0s'); // Display 0s immediately when the stopwatch starts
     // Fetch all visible calendar IDs
     fetchCalendarList(calendarIds => {
-        let eventPromises = calendarIds.map(calendarId => {
-          return new Promise((resolve, reject) => {
-            fetchNextCalendarEvent(calendarId, timeMin, timeMax, nextEventStartTime => {
-              if (nextEventStartTime) {
-                resolve(nextEventStartTime);
-              } else {
-                resolve(null);
-              }
-            });
+      let eventPromises = calendarIds.map(calendarId => {
+        return new Promise((resolve, reject) => {
+          fetchNextCalendarEvent(calendarId, nextEventStartTime => {
+              resolve(nextEventStartTime);
           });
         });
       });
 
-      Promise.all(eventPromises).then(eventStartTimes => {
-        let earliestEventStartTime = eventStartTimes
-          .filter(eventStartTime => eventStartTime !== null)
-          .sort((a, b) => a.getTime() - b.getTime())[0];
+      if (eventPromises.length > 0) {
+        Promise.all(eventPromises).then(eventStartTimes => {
+          let earliestEventStartTime = eventStartTimes
+            .filter(eventStartTime => eventStartTime !== null)
+            .sort((a, b) => a.getTime() - b.getTime())[0];
 
-        // If there is an event before the max duration, set a timeout to stop the stopwatch
-        if (earliestEventStartTime) {
-          if (earliestEventStartTime < new Date(stopwatch.startTime + stopwatch.maxDuration)) {
+          // If there is an event before the max duration, set a timeout to stop the stopwatch
+          if (earliestEventStartTime && earliestEventStartTime < new Date(stopwatch.startTime + stopwatch.maxDuration)) {
             let timeUntilEvent = earliestEventStartTime.getTime() - Date.now();
             setTimeout(() => {
               stopStopwatch(isBreak=true);
             }, timeUntilEvent);
           }
-        } else {
-          // If there are no upcoming events, set a timeout for the max duration
-          setTimeout(() => {
-            stopStopwatch(isBreak=true);
-          }, stopwatch.maxDuration);
-          let timeUntilEvent = earliestEventStartTime.getTime() - Date.now();
-          setTimeout(() => {
-            stopStopwatch(isBreak=true);
-          }, timeUntilEvent);
-        }
-      });
-    });
-
-    stopwatch.timer = setInterval(() => {
-      // If there is an event before the max duration, set a timeout to stop the stopwatch
-      if (nextEventStartTime && nextEventStartTime < new Date(stopwatch.startTime + stopwatch.maxDuration)) {
-        let timeUntilEvent = nextEventStartTime.getTime() - Date.now();
-        setTimeout(() => {
-          stopStopwatch(isBreak=true);
-        }, timeUntilEvent);
+        });
       }
-    });
+    })
 
     stopwatch.timer = setInterval(() => {
       stopwatch.elapsedTime = Date.now() - stopwatch.startTime;
       
-      stopwatch.elapsedTime = Date.now() - stopwatch.startTime;
-
       if (stopwatch.elapsedTime >= stopwatch.maxDuration) {
         stopStopwatch(isBreak=true);
       } else {
@@ -258,7 +233,7 @@ function fetchCalendarList(callback) {
 }
 
 // Modified helper function to fetch the next calendar event from a specific calendar
-function fetchNextCalendarEvent(calendarId, timeMin, timeMax, callback) {
+function fetchNextCalendarEvent(calendarId, callback) {
   chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
     if (chrome.runtime.lastError) {
       console.error(chrome.runtime.lastError);
@@ -277,7 +252,6 @@ function fetchNextCalendarEvent(calendarId, timeMin, timeMax, callback) {
         'Content-Type': 'application/json'
       },
       'contentType': 'json',
-      'mode': 'no-cors'
     };
 
     // Make the API request to get the next event
@@ -289,7 +263,11 @@ function fetchNextCalendarEvent(calendarId, timeMin, timeMax, callback) {
           let nextEvent = data.items.find(event => event.start.dateTime);
           if (nextEvent) {
             callback(new Date(nextEvent.start.dateTime)); // Pass the start time of the next event to the callback
+          } else {
+            callback(null); // No next event found
           }
+        } else {
+            callback(null); // No next event found
         }
       })
       .catch(function(error) {
