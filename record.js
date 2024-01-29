@@ -71,25 +71,6 @@ document.addEventListener('DOMContentLoaded', function() {
         chrome.storage.sync.set({ 'learningMode': learningModeToggle.checked });
     });
 
-    const cal = new CalHeatmap();
-    cal.paint({
-        domain: { 
-            type: 'month', 
-            label: {
-                position: 'left',
-                offset: {
-                    y: 5,
-                },
-            },
-        },
-        subDomain: { 
-            type: 'week' ,
-            height: 20,
-            width: 20,
-        },
-        verticalOrientation: true,
-    });
-
     // Function to retrieve all calendar events since the start of the year with "flowwatch" in their summary
     function fetchFlowwatchEvents() {
         chrome.runtime.sendMessage({action: 'fetchFlowwatchEvents'}, function(response) {
@@ -103,12 +84,47 @@ document.addEventListener('DOMContentLoaded', function() {
                         value: parseFloat(durationHours.toFixed(2))
                     };
                 });
-                // Use flowwatchEvents as needed
-                console.log(flowwatchEvents);
+                const cal = new CalHeatmap();
+                cal.paint({
+                    data: {
+                        source: flowwatchEvents, 
+                        x: 'date',
+                        y: 'value',
+                        groupY: 'sum', 
+                    },
+                    domain: { 
+                        type: 'month', 
+                        label: {
+                            position: 'left',
+                            offset: {
+                                y: 5,
+                            },
+                        },
+                    },
+                    subDomain: { 
+                        type: 'week' ,
+                        height: 20,
+                        width: 20,
+                    },
+                    verticalOrientation: true,
+                }, 
+                    [
+                        [
+                            Tooltip,
+                            {
+                                text: function (date, value) {
+                                    return (
+                                        (value ? value + 'h' : 'No data') 
+                                    );
+                                },
+                            },
+                        ],
+                    ]
+                );
             }
         });
     }
 
     // Call the function to fetch events
-    fetchFlowwatchEvents();
+    const flowwatchEvents = fetchFlowwatchEvents();
 });
