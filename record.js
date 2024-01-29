@@ -2,6 +2,7 @@
 // It will communicate with the background script to initiate the authorization process
 
 document.addEventListener('DOMContentLoaded', function() {
+    //
     // Add event listeners to the buttons for OAuth
     document.getElementById('authorize_button').addEventListener('click', function() {
         chrome.runtime.sendMessage({action: 'authorize'});
@@ -67,4 +68,25 @@ document.addEventListener('DOMContentLoaded', function() {
     learningModeToggle.addEventListener('change', () => {
         chrome.storage.sync.set({ 'learningMode': learningModeToggle.checked });
     });
+
+    const cal = new CalHeatmap();
+    cal.paint({
+        domain: { 
+            type: 'month', 
+            label: {
+                position: 'left',
+                offset: {
+                    y: 5,
+                },
+            },
+        },
+        subDomain: { 
+            type: 'week' ,
+            height: 20,
+            width: 20,
+        },
+        verticalOrientation: true,
+    });
 });
+
+
