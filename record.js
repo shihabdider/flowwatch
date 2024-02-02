@@ -87,6 +87,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log(flowwatchEvents);
                 const cal = new CalHeatmap();
                 cal.paint({
+                    date: {
+                        start: new Date(new Date().getFullYear(), 0, 1)
+                    },
                     data: {
                         source: flowwatchEvents, 
                         x: 'date',
