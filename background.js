@@ -3,7 +3,7 @@ let stopwatch = {
   elapsedTime: 0,
   timer: null,
   running: false,
-  maxDuration: 90 * 60 * 1000, // 90 minutes
+  maxDuration: 4 * 60 * 60 * 1000, // 4 hours
   minDuration: 15 * 60 * 1000
 };
 
@@ -129,6 +129,7 @@ function startStopwatch() {
 }
 
 function setupLearningMode() {
+    stopwatch.maxDuration = 90*60*1000; // 90 minutes
     const averageInterval = 2*60*1000; // 2 minutes in milliseconds
     const variation = 30*1000; // 30 seconds variation
     function triggerLearningModeEvent() {
