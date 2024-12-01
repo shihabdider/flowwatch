@@ -104,7 +104,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const prevButton = document.getElementById('prevButton');
     const nextButton = document.getElementById('nextButton');
     
-    let currentView = 'week';
+    let currentView = 'year';
     let cal;
 
     function updateCalendar(viewType) {
@@ -115,7 +115,9 @@ document.addEventListener('DOMContentLoaded', function() {
         cal = new CalHeatmap();
         const config = {
             date: {
-                start: new Date(new Date().getFullYear(), 0, 1)
+                start: viewType === 'year' 
+                    ? new Date(new Date().getFullYear(), 0, 1)  // January 1st of current year
+                    : new Date(new Date().getFullYear(), new Date().getMonth(), 1) // First day of current month
             },
             data: {
                 source: flowwatchEvents,
@@ -123,7 +125,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 y: 'value',
             },
             domain: {
-                type: viewType,
+                type: viewType === 'year' ? 'month' : 'month',
+                gutter: 4,
                 label: {
                     position: 'left',
                     offset: {
@@ -132,10 +135,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
             },
             subDomain: {
-                type: viewType === 'month' ? 'day' : 'day', // Changed: always use 'day' as subDomain
-                height: 20,
-                width: 20,
+                type: viewType === 'year' ? 'week' : 'day',
+                height: viewType === 'year' ? 10 : 20,
+                width: viewType === 'year' ? 10 : 20,
             },
+            range: viewType === 'year' ? 12 : 1, // Show 12 months for year view, 1 month for month view
             scale: {
                 color: {
                     scheme: 'BuPu',
@@ -159,10 +163,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     weekView.addEventListener('click', () => {
-        currentView = 'week';
+        currentView = 'year';
         weekView.classList.add('active');
         monthView.classList.remove('active');
-        updateCalendar('week');
+        updateCalendar('year');
     });
 
     monthView.addEventListener('click', () => {
