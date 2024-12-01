@@ -177,25 +177,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     prevButton.addEventListener('click', () => {
-        if (currentView === 'year') {
-            // Move back one year
-            let currentDate = new Date(cal.options.date.start);
-            let newDate = new Date(currentDate.getFullYear() - 1, 0, 1);
-            updateCalendar(currentView, newDate);
-        } else {
-            cal.previous();
-        }
+        cal.previous();
     });
 
     nextButton.addEventListener('click', () => {
-        if (currentView === 'year') {
-            // Move forward one year
-            let currentDate = new Date(cal.options.date.start);
-            let newDate = new Date(currentDate.getFullYear() + 1, 0, 1);
-            updateCalendar(currentView, newDate);
-        } else {
-            cal.next();
-        }
+        cal.next();
     });
 
     // Initialize calendar
