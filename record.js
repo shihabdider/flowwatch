@@ -177,11 +177,27 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     prevButton.addEventListener('click', () => {
-        cal.previous();
+        if (currentView === 'year') {
+            // Move back one year
+            let currentDate = cal.options.date.start;
+            let newDate = new Date(currentDate.getFullYear() - 1, 0, 1);
+            cal.options.date.start = newDate;
+            updateCalendar(currentView);
+        } else {
+            cal.previous();
+        }
     });
 
     nextButton.addEventListener('click', () => {
-        cal.next();
+        if (currentView === 'year') {
+            // Move forward one year
+            let currentDate = cal.options.date.start;
+            let newDate = new Date(currentDate.getFullYear() + 1, 0, 1);
+            cal.options.date.start = newDate;
+            updateCalendar(currentView);
+        } else {
+            cal.next();
+        }
     });
 
     // Initialize calendar

@@ -50,22 +50,21 @@
         <span id="toggleLabel">Learning Mode</span>
     </div>
     <p id="min-duration-hint">N.B only records times greater than 15 minutes; less is too short for flow</p>
-    <h2>Google Calendar Authorization</h2>
-    <div class="button-container">
+    <h2>Google Calendar Authorization
         <button id="authorize_button">Authorize</button>
         <button id="signout_button" style="display: none; background-color:red">Sign Out</button>
-    </div>
+    </h2>
     <div class="calendar-controls">
         <div class="view-toggle">
             <button id="weekView" class="view-button active">Year View</button>
             <button id="monthView" class="view-button">Month View</button>
         </div>
-        <div class="navigation">
-            <button id="prevButton">Previous</button>
-            <button id="nextButton">Next</button>
-        </div>
     </div>
     <div id="cal-heatmap"></div>
+    <div class="navigation">
+        <button id="prevButton" aria-label="Previous">&#8592;</button>
+        <button id="nextButton" aria-label="Next">&#8594;</button>
+    </div>
     <script src="record.js"></script>
 </body>
 
