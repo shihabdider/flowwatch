@@ -23,10 +23,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // ... existing code ...
-
     const recordCalendarToggle = document.getElementById('recordCalendarToggle');
-
     // Restore the state of the toggle from storage
     chrome.storage.sync.get('recordCalendar', (data) => {
         recordCalendarToggle.checked = data.recordCalendar !== false; // default true if not set
@@ -36,6 +33,15 @@ document.addEventListener('DOMContentLoaded', function() {
     recordCalendarToggle.addEventListener('change', () => {
         chrome.storage.sync.set({ 'recordCalendar': recordCalendarToggle.checked });
     });
+
+    const ignoreCalendarEventsToggle = document.getElementById('ignoreCalendarEventsToggle');
+    chrome.storage.sync.get('ignoreCalendarEvents', (data) => {
+        ignoreCalendarEventsToggle.checked = data.ignoreCalendarEvents === true; // default false if not set
+    })
+
+    ignoreCalendarEventsToggle.addEventListener('change', () => {
+        chrome.storage.sync.set({ 'ignoreCalendarEvents': ignoreCalendarEventsToggle.checked });
+    })
 
     const playAudioToggle = document.getElementById('playAudioToggle');
 

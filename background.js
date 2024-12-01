@@ -92,13 +92,16 @@ function startStopwatch() {
             .filter(eventStartTime => eventStartTime !== null)
             .sort((a, b) => a.getTime() - b.getTime())[0];
 
-          // If there is an event before the max duration, set a timeout to stop the stopwatch
-          if (earliestEventStartTime && earliestEventStartTime < new Date(stopwatch.startTime + stopwatch.maxDuration)) {
-            let timeUntilEvent = earliestEventStartTime.getTime() - Date.now();
-            setTimeout(() => {
-              stopStopwatch(isBreak=true);
-            }, timeUntilEvent);
-          }
+          chrome.storage.sync.get('ignoreCalendarEvents', (data) => {
+            if(data.ignoreCalendarEvents === false) { 
+              if (earliestEventStartTime && earliestEventStartTime < new Date(stopwatch.startTime + stopwatch.maxDuration)) {
+                let timeUntilEvent = earliestEventStartTime.getTime() - Date.now();
+                setTimeout(() => {
+                  stopStopwatch(isBreak=true);
+                }, timeUntilEvent);
+              }
+            }
+          });
         });
       }
     })
