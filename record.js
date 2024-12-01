@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
             },
             subDomain: {
-                type: viewType === 'month' ? 'day' : 'week',
+                type: viewType === 'month' ? 'day' : 'day', // Changed: always use 'day' as subDomain
                 height: 20,
                 width: 20,
             },
