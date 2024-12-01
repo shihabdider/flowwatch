@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentView = 'year';
     let cal;
 
-    function updateCalendar(viewType) {
+    function updateCalendar(viewType, customDate = null) {
         if (cal) {
             cal.destroy();
         }
@@ -115,9 +115,9 @@ document.addEventListener('DOMContentLoaded', function() {
         cal = new CalHeatmap();
         const config = {
             date: {
-                start: viewType === 'year' 
+                start: customDate || (viewType === 'year' 
                     ? new Date(new Date().getFullYear(), 0, 1)  // January 1st of current year
-                    : new Date(new Date().getFullYear(), new Date().getMonth(), 1) // First day of current month
+                    : new Date(new Date().getFullYear(), new Date().getMonth(), 1)) // First day of current month
             },
             data: {
                 source: flowwatchEvents,
@@ -179,10 +179,9 @@ document.addEventListener('DOMContentLoaded', function() {
     prevButton.addEventListener('click', () => {
         if (currentView === 'year') {
             // Move back one year
-            let currentDate = cal.options.date.start;
+            let currentDate = new Date(cal.options.date.start);
             let newDate = new Date(currentDate.getFullYear() - 1, 0, 1);
-            cal.options.date.start = newDate;
-            updateCalendar(currentView);
+            updateCalendar(currentView, newDate);
         } else {
             cal.previous();
         }
@@ -191,10 +190,9 @@ document.addEventListener('DOMContentLoaded', function() {
     nextButton.addEventListener('click', () => {
         if (currentView === 'year') {
             // Move forward one year
-            let currentDate = cal.options.date.start;
+            let currentDate = new Date(cal.options.date.start);
             let newDate = new Date(currentDate.getFullYear() + 1, 0, 1);
-            cal.options.date.start = newDate;
-            updateCalendar(currentView);
+            updateCalendar(currentView, newDate);
         } else {
             cal.next();
         }
