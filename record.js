@@ -139,6 +139,88 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Call the function to fetch events
-    const flowwatchEvents = fetchFlowwatchEvents();
+    // View toggle functionality
+    const weekView = document.getElementById('weekView');
+    const monthView = document.getElementById('monthView');
+    const prevButton = document.getElementById('prevButton');
+    const nextButton = document.getElementById('nextButton');
+    
+    let currentView = 'week';
+    let cal;
+
+    function updateCalendar(viewType) {
+        if (cal) {
+            cal.destroy();
+        }
+        
+        cal = new CalHeatmap();
+        const config = {
+            date: {
+                start: new Date(new Date().getFullYear(), 0, 1)
+            },
+            data: {
+                source: flowwatchEvents,
+                x: 'date',
+                y: 'value',
+            },
+            domain: {
+                type: viewType,
+                label: {
+                    position: 'left',
+                    offset: {
+                        y: 5,
+                    },
+                },
+            },
+            subDomain: {
+                type: viewType === 'month' ? 'day' : 'week',
+                height: 20,
+                width: 20,
+            },
+            scale: {
+                color: {
+                    scheme: 'BuPu',
+                    domain: [0, 40],
+                },
+            },
+            verticalOrientation: true,
+        };
+
+        cal.paint(config, [
+            [
+                Tooltip,
+                {
+                    text: function (date, value, dayjsDate) {
+                        let displayValue = value ? parseFloat(value).toFixed(2) : 'No data';
+                        return `${displayValue} hours on ${dayjsDate.format('MM-DD')}`;
+                    },
+                },
+            ],
+        ]);
+    }
+
+    weekView.addEventListener('click', () => {
+        currentView = 'week';
+        weekView.classList.add('active');
+        monthView.classList.remove('active');
+        updateCalendar('week');
+    });
+
+    monthView.addEventListener('click', () => {
+        currentView = 'month';
+        monthView.classList.add('active');
+        weekView.classList.remove('active');
+        updateCalendar('month');
+    });
+
+    prevButton.addEventListener('click', () => {
+        cal.previous();
+    });
+
+    nextButton.addEventListener('click', () => {
+        cal.next();
+    });
+
+    // Initialize calendar
+    fetchFlowwatchEvents();
 });
