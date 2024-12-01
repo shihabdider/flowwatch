@@ -1,6 +1,8 @@
 // This script will be responsible for handling the OAuth2 flow
 // It will communicate with the background script to initiate the authorization process
 
+let flowwatchEvents = [];
+
 document.addEventListener('DOMContentLoaded', function() {
     //
     // Add event listeners to the buttons for OAuth
@@ -81,7 +83,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function fetchFlowwatchEvents() {
         chrome.runtime.sendMessage({action: 'fetchFlowwatchEvents'}, function(response) {
             if (response && response.events) {
-                let flowwatchEvents = response.events.map(event => {
+                flowwatchEvents = response.events.map(event => {
                     let startTime = new Date(event.start.dateTime);
                     let endTime = new Date(event.end.dateTime);
                     let durationHours = ((endTime - startTime) / (1000 * 60 * 60)).toPrecision(2);
@@ -91,50 +93,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     };
                 });
                 console.log(flowwatchEvents);
-                const cal = new CalHeatmap();
-                cal.paint({
-                    date: {
-                        start: new Date(new Date().getFullYear(), 0, 1)
-                    },
-                    data: {
-                        source: flowwatchEvents, 
-                        x: 'date',
-                        y: 'value',
-                    },
-                    domain: { 
-                        type: 'month', 
-                        label: {
-                            position: 'left',
-                            offset: {
-                                y: 5,
-                            },
-                        },
-                    },
-                    subDomain: { 
-                        type: 'week' ,
-                        height: 20,
-                        width: 20,
-                    },
-                    scale: {
-                        color: {
-                            scheme: 'BuPu',
-                            domain: [0, 40],
-                        },
-                    },
-                    verticalOrientation: true,
-                }, 
-                    [
-                        [
-                            Tooltip,
-                            {
-                                text: function (date, value, dayjsDate) {
-                                    let displayValue = value ? parseFloat(value).toFixed(2) : 'No data';
-                                    return `${displayValue} hours on week of ${dayjsDate.format('MM-DD')}`;
-                                },
-                            },
-                        ],
-                    ]
-                );
+                updateCalendar(currentView);
             }
         });
     }
@@ -223,4 +182,5 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize calendar
     fetchFlowwatchEvents();
+    // Initial calendar will be created by fetchFlowwatchEvents after data is loaded
 });
