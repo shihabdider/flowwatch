@@ -83,16 +83,30 @@ document.addEventListener('DOMContentLoaded', function() {
     function fetchFlowwatchEvents() {
         chrome.runtime.sendMessage({action: 'fetchFlowwatchEvents'}, function(response) {
             if (response && response.events) {
-                flowwatchEvents = response.events.map(event => {
+                // Create a map to aggregate events by date
+                const eventsByDate = new Map();
+                
+                response.events.forEach(event => {
                     let startTime = new Date(event.start.dateTime);
                     let endTime = new Date(event.end.dateTime);
-                    let durationHours = ((endTime - startTime) / (1000 * 60 * 60)).toPrecision(2);
-                    return {
-                        date: startTime.toISOString().split('T')[0],
-                        value: parseFloat(durationHours)
-                    };
+                    let dateKey = startTime.toISOString().split('T')[0];
+                    let durationHours = (endTime - startTime) / (1000 * 60 * 60);
+
+                    // If we already have events for this date, add to the total
+                    if (eventsByDate.has(dateKey)) {
+                        eventsByDate.set(dateKey, eventsByDate.get(dateKey) + durationHours);
+                    } else {
+                        eventsByDate.set(dateKey, durationHours);
+                    }
                 });
-                console.log(flowwatchEvents);
+
+                // Convert the map to the array format needed for the calendar
+                flowwatchEvents = Array.from(eventsByDate.entries()).map(([date, totalHours]) => ({
+                    date: date,
+                    value: parseFloat(totalHours.toPrecision(2))
+                }));
+
+                console.log('Aggregated flowwatch events:', flowwatchEvents);
                 updateCalendar(currentView);
             }
         });
