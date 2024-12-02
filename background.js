@@ -205,6 +205,7 @@ function fetchFlowwatchEventsFromCalendar(callback) {
 
         let now = new Date();
         let startOfYear = new Date(now.getFullYear(), 0, 1).toISOString(); // January 1st of the current year
+        let endOfYear = new Date(now.getFullYear(), 11, 31, 23, 59, 59).toISOString(); // December 31st of the current year
 
         let init = {
             method: 'GET',
@@ -216,7 +217,7 @@ function fetchFlowwatchEventsFromCalendar(callback) {
             'contentType': 'json'
         };
 
-        fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${startOfYear}&q=flowwatch&singleEvents=true&orderBy=startTime`, init)
+        fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${startOfYear}&timeMax=${endOfYear}&q=flowwatch&singleEvents=true&orderBy=startTime`, init)
             .then((response) => response.json())
             .then(function(data) {
                 let events = data.items || [];
