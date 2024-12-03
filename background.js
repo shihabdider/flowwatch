@@ -204,28 +204,49 @@ function fetchFlowwatchEventsFromCalendar(callback) {
         }
 
         let now = new Date();
-        let startOfYear = new Date(now.getFullYear(), 0, 1).toISOString(); // January 1st of the current year
-        let endOfYear = new Date(now.getFullYear(), 11, 31, 23, 59, 59).toISOString(); // December 31st of the current year
+        let startOfYear = new Date(now.getFullYear(), 0, 1).toISOString();
+        let endOfYear = new Date(now.getFullYear(), 11, 31, 23, 59, 59).toISOString();
+        let allEvents = [];
 
-        let init = {
-            method: 'GET',
-            async: true,
-            headers: {
-                'Authorization': 'Bearer ' + token,
-                'Content-Type': 'application/json'
-            },
-            'contentType': 'json'
-        };
+        // Helper function to fetch a page of events
+        function fetchPage(pageToken = null) {
+            let init = {
+                method: 'GET',
+                async: true,
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                },
+                'contentType': 'json'
+            };
 
-        fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${startOfYear}&timeMax=${endOfYear}&q=flowwatch&singleEvents=true&orderBy=startTime`, init)
-            .then((response) => response.json())
-            .then(function(data) {
-                let events = data.items || [];
-                callback({ events: events });
-            })
-            .catch(function(error) {
-                console.error('Error fetching events:', error);
-            });
+            let url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${startOfYear}&timeMax=${endOfYear}&q=flowwatch&singleEvents=true&orderBy=startTime&maxResults=250`;
+            if (pageToken) {
+                url += `&pageToken=${pageToken}`;
+            }
+
+            fetch(url, init)
+                .then((response) => response.json())
+                .then(function(data) {
+                    if (data.items) {
+                        allEvents = allEvents.concat(data.items);
+                    }
+                    
+                    if (data.nextPageToken) {
+                        // If there's a next page, fetch it
+                        fetchPage(data.nextPageToken);
+                    } else {
+                        // No more pages, return all events
+                        callback({ events: allEvents });
+                    }
+                })
+                .catch(function(error) {
+                    console.error('Error fetching events:', error);
+                });
+        }
+
+        // Start fetching from the first page
+        fetchPage();
     });
 }
 
