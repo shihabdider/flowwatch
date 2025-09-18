@@ -3,33 +3,40 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>FlowWatch Records</title>
+    <title>FlowWatch</title>
     <link rel="stylesheet" href="record.css">
-    <script src="vendor/d3.v7.min.js"></script>
     <link rel="stylesheet" href="vendor/cal-heatmap.css">
+    <script src="vendor/d3.v7.min.js"></script>
     <script src="vendor/cal-heatmap.min.js"></script>
+    <script src="vendor/Tooltip.min.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        if (chrome && chrome.runtime && chrome.runtime.openOptionsPage) {
+          chrome.runtime.openOptionsPage();
+          window.close();
+        }
+      });
+    </script>
 </head>
 
 <body>
     <h1>Options</h1>
-    <div class="option">
-      <label for="focusMinutesInput">Focus length (default 15 minutes):</label>
-      <input id="focusMinutesInput" type="number" min="1" step="1" value="15">
+    <div class="timer-controls">
+      <input id="intention_input" placeholder="What will you focus on?" />
+      <button id="start_focus_button">Start Focus</button>
+      <button id="end_flow_button">End Flow</button>
+      <button id="reset_button">Reset</button>
+      <span id="timer_display">00:00</span>
     </div>
+
     <div class="switch-container">
         <label class="switch">
             <input type="checkbox" id="playAudioToggle">
             <span class="slider round"></span>
         </label>
-        <span class="toggle-label">Binaural Beats</span>
+        <span id="toggleLabel">Binaural Beats</span>
     </div>
-    <div class="switch-container">
-      <label class="switch">
-        <input type="checkbox" id="promptIntentionToggle">
-        <span class="slider round"></span>
-      </label>
-      <span class="toggle-label">Ask for intention on start</span>
-    </div>
+
     <div class="calendar-controls">
         <div class="view-toggle">
             <button id="weekView" class="view-button active">Year View</button>
@@ -41,7 +48,7 @@
         <button id="prevButton" aria-label="Previous">&#8592;</button>
         <button id="nextButton" aria-label="Next">&#8594;</button>
     </div>
-    <script src="record.js"></script>
+    <script src="popup.js"></script>
 </body>
 
 </html>

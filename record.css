@@ -1,6 +1,9 @@
 body {
     font-family: Arial, sans-serif;
-    margin: 40px; /* Added margin space on the sides */
+    margin: 40px auto;
+    max-width: 840px;
+    padding: 0 16px;
+    line-height: 1.5;
 }
 
 iframe {
@@ -12,6 +15,10 @@ h1, h2 {
     text-align: center; /* Centered the title */
 }
 
+h1 {
+    margin-bottom: 24px;
+}
+
 h2 {
     display: flex;
     align-items: center;
@@ -19,37 +26,34 @@ h2 {
     gap: 20px;
 }
 
-p#min-duration-hint {
-    display: flex;
-    justify-content: center; /* This will center the switch and label inside the switch-container */
-    align-items: center;
-    margin-bottom: 20px;
-}
 
-.button-container {
-    text-align: center; /* Center the container */
-}
 
-.button-container button {
-    display: inline-block; /* Make the button inline-block to place side by side */
-    margin: 10px; /* Add margin to the right and left for spacing */
-    padding: 5px 15px; /* Reduce padding for a smaller button */
-    font-size: 14px; /* Reduce font size */
-    cursor: pointer; /* Change cursor to pointer on hover */
-    background-color: #4CAF50; /* Add background color */
-    color: white; /* Change text color to white */
-    border: none; /* Remove border */
-    border-radius: 4px; /* Add border radius for rounded corners */
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Add shadow for depth */
-}
 
-/* The switch-container for positioning the toggle and label */
 .switch-container {
     display: flex;
-    justify-content: left; /* This will center the switch and label inside the switch-container */
     align-items: center;
-    padding-inline: 480px;
-    margin-bottom: 20px;
+    gap: 12px;
+    margin: 12px auto 20px;
+    max-width: 560px;
+}
+
+.option {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 12px;
+    max-width: 560px;
+    margin: 12px auto 24px;
+}
+.option label {
+    font-weight: 600;
+}
+.option input[type="number"] {
+    width: 120px;
+    padding: 6px 8px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
 }
 
 /* The switch - the box around the slider */
@@ -115,15 +119,17 @@ input:checked + .slider:before {
   border-radius: 50%;
 }
 
-#toggleLabel {
-  margin-left: 10px;
+.toggle-label {
+  margin-left: 8px;
+  font-size: 14px;
+  color: #333;
 }
 
 .calendar-controls {
     display: flex;
     justify-content: center;
     gap: 20px;
-    margin-bottom: 20px;
+    margin: 16px 0 8px;
 }
 
 .view-toggle, .navigation {
@@ -134,11 +140,12 @@ input:checked + .slider:before {
 }
 
 .view-button {
-    padding: 5px 15px;
+    padding: 6px 14px;
     cursor: pointer;
-    background-color: #f0f0f0;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    background-color: #f7f7f7;
+    border: 1px solid #d0d0d0;
+    border-radius: 6px;
+    font-size: 14px;
 }
 
 .view-button.active {
@@ -158,12 +165,18 @@ input:checked + .slider:before {
     font-size: 14px;
     padding: 0;
     cursor: pointer;
-    color: gray;
-    border: none;
+    color: #666;
+    border: 1px solid #e0e0e0;
+    background: #fff;
+}
+#prevButton:hover, #nextButton:hover {
+    background: #f3f3f3;
 }
 
 #cal-heatmap {
     display: flex;
     justify-content: center;
     padding-top: 24px;
+    max-width: 840px;
+    margin: 0 auto;
 }

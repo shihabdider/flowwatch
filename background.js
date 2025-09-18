@@ -1,402 +1,341 @@
-let stopwatch = {
-  startTime: null,
-  elapsedTime: 0,
-  timer: null,
-  running: false,
-  maxDuration: 4 * 60 * 60 * 1000, // 4 hours
-  minDuration: 15 * 60 * 1000
-};
+const MIN_BREAK_MINUTES = 3;
+const MAX_BREAK_MINUTES = 20;
+const TIMER_ALARM_NAME = 'flowWatchTimer';
+const SESSION_ALARM_NAME = 'flowWatchSessionEnd';
+const MIN_RECORD_MINUTES = 15;
 
-let audio = new Audio('audio/focus_compressed.opus'); // Replace with your actual mp3 file path
+// Badge/colors + defaults
+const BADGE_BLUE = '#3b82f6';   // focus
+const BADGE_GREEN = '#10b981';  // break
+const DEFAULT_FOCUS_MINUTES = 15;
 
-function updateIconText(text) {
-  chrome.browserAction.setBadgeText({ text: text });
+function minutesFromSeconds(sec) {
+  return Math.floor(sec / 60);
 }
 
-function stopStopwatch(isBreak=false) {
-  clearInterval(stopwatch.timer);
-  stopLearningMode();
-  stopwatch.running = false;
-  updateIconText('');
-  let endTime = new Date();
-  let record = {
-    startTime: new Date(stopwatch.startTime).toISOString(),
-    endTime: endTime.toISOString(),
-    elapsedTime: stopwatch.elapsedTime
-  };
-
-  // Check if the elapsed time is within the specified constraints
-  if (record.elapsedTime >= stopwatch.minDuration) {
-    // Check if the user has opted to record the stopwatch usage on the calendar
-    chrome.storage.sync.get('recordCalendar', (data) => {
-        if (data.recordCalendar !== false) { // default true if not set
-            // Fetch the user's timezone and create the event
-            fetchUserTimezone(function(timezone) {
-                // Create an event object for Google Calendar with the fetched timezone
-                let event = {
-                    'summary': 'Flowwatch',
-                    'start': {
-                        'dateTime': record.startTime,
-                        'timeZone': timezone
-                    },
-                    'end': {
-                        'dateTime': record.endTime,
-                        'timeZone': timezone
-                    }
-                };
-
-                // Call the function to create the event on Google Calendar with the fetched timezone
-                createGoogleCalendarEvent(event, timezone);
-            });
-        }
-    });
-  }
-  stopwatch.elapsedTime = 0;
-  if (isBreak) {
-    let sound = new Audio('audio/alarm.wav');
-    sound.play();
-  }
-  audio.pause();
-  audio.currentTime = 0;
+async function setBadge(mode, text) {
+  const color = mode === 'break' ? BADGE_GREEN : BADGE_BLUE;
+  await chrome.action.setBadgeBackgroundColor({ color });
+  await chrome.action.setBadgeText({ text });
 }
 
-let learningModeInterval;
-
-function startStopwatch() {
-  if (!stopwatch.running) {
-    chrome.storage.sync.get(['newWindow', 'learningMode'], (data) => {
-        if (data.newWindow !== false) { // default true if not set
-            chrome.windows.create();
-        }
-        if (data.learningMode === true) {
-            // Set up the learning mode interval
-            setupLearningMode();
-        }
-    });
-
-    stopwatch.startTime = Date.now() - stopwatch.elapsedTime;
-    updateIconText('0s'); // Display 0s immediately when the stopwatch starts
-    // Fetch all visible calendar IDs
-    fetchCalendarList(calendarIds => {
-      let eventPromises = calendarIds.map(calendarId => {
-        return new Promise((resolve, reject) => {
-          fetchNextCalendarEvent(calendarId, nextEventStartTime => {
-              resolve(nextEventStartTime);
-          });
-        });
-      });
-
-      if (eventPromises.length > 0) {
-        Promise.all(eventPromises).then(eventStartTimes => {
-          let earliestEventStartTime = eventStartTimes
-            .filter(eventStartTime => eventStartTime !== null)
-            .sort((a, b) => a.getTime() - b.getTime())[0];
-
-          chrome.storage.sync.get('ignoreCalendarEvents', (data) => {
-            if(data.ignoreCalendarEvents === false) { 
-              if (earliestEventStartTime && earliestEventStartTime < new Date(stopwatch.startTime + stopwatch.maxDuration)) {
-                let timeUntilEvent = earliestEventStartTime.getTime() - Date.now();
-                setTimeout(() => {
-                  stopStopwatch(isBreak=true);
-                }, timeUntilEvent);
-              }
-            }
-          });
-        });
-      }
-    })
-
-    stopwatch.timer = setInterval(() => {
-      stopwatch.elapsedTime = Date.now() - stopwatch.startTime;
-      
-      if (stopwatch.elapsedTime >= stopwatch.maxDuration) {
-        stopStopwatch(isBreak=true);
-      } else {
-        let seconds = Math.floor(stopwatch.elapsedTime / 1000);
-        let minutes = Math.floor(seconds / 60);
-        seconds = seconds % 60;
-        let displayTime = minutes > 0 ? `${minutes}m` : `${seconds}s`;
-        updateIconText(displayTime);
-      }
-    }, 100); // Update every 100ms for a more responsive UI
-    stopwatch.running = true;
-
-    chrome.storage.sync.get('playAudio', (data) => {
-      if(data.playAudio !== false) { // default true if not set
-        audio.play();
-      }
-    });
-  } else {
-    stopStopwatch();
-  }
+function clearBadge() {
+  chrome.action.setBadgeText({ text: '' });
 }
 
-function setupLearningMode() {
-    stopwatch.maxDuration = 90*60*1000; // 90 minutes
-    const averageInterval = 2*60*1000; // 2 minutes in milliseconds
-    const variation = 30*1000; // 30 seconds variation
-    function triggerLearningModeEvent() {
-        let randomInterval = Math.random() * variation * 2 - variation + averageInterval;
-        learningModeInterval = setTimeout(() => {
-            let alertSound = new Audio('audio/alarm.wav');
-            audio.pause();
-            alertSound.play();
-            setTimeout(() => {
-                if (stopwatch.running) {
-                    audio.play();
-                }
-                triggerLearningModeEvent();
-            }, 10*1000); // Pause the focus audio for 10 seconds
-        }, randomInterval);
+function computeFocusBadgeText(elapsedSec, plannedMin) {
+  const elapsedMin = minutesFromSeconds(elapsedSec);
+  if (elapsedMin < plannedMin) {
+    // count down remaining minutes
+    return String(Math.max(0, plannedMin - elapsedMin));
+  }
+  // time is up; count up showing total elapsed minutes
+  return String(elapsedMin);
+}
+
+function computeBreakBadgeText(elapsedSec, plannedMin) {
+  const elapsedMin = minutesFromSeconds(elapsedSec);
+  // break only counts down
+  return String(Math.max(0, plannedMin - elapsedMin));
+}
+
+function updateBadge() {
+  chrome.storage.local.get(
+    ['isRunning', 'mode', 'startTime', 'plannedMinutes'],
+    async (res) => {
+      if (!res.isRunning || !res.startTime) {
+        clearBadge();
+        return;
+      }
+      const elapsedSec = Math.max(
+        0,
+        Math.floor((Date.now() - res.startTime) / 1000)
+      );
+
+      let planned = Number(res.plannedMinutes);
+      if (!planned || planned <= 0) {
+        planned = DEFAULT_FOCUS_MINUTES;
+      }
+
+      const text =
+        res.mode === 'break'
+          ? computeBreakBadgeText(elapsedSec, planned)
+          : computeFocusBadgeText(elapsedSec, planned);
+
+      setBadge(res.mode, text);
     }
-    triggerLearningModeEvent();
+  );
 }
 
-function stopLearningMode() {
-    clearTimeout(learningModeInterval);
-}
+chrome.runtime.onStartup.addListener(updateBadge);
 
-chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
-    if (request.action === 'authorize') {
-        chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
-            if (chrome.runtime.lastError) {
-                console.error(chrome.runtime.lastError);
-                sendResponse({ token: null });
-            } else {
-                console.log('Token acquired:', token);
-                sendResponse({ token: token });
-            }
-        });
-        return true; // Indicates that the response is asynchronous
-    } else if (request.action === 'signout') {
-        chrome.identity.getAuthToken({ 'interactive': false }, function(currentToken) {
-            if (currentToken) {
-                // Invalidate the token in the Google's authorization server
-                fetch(`https://accounts.google.com/o/oauth2/revoke?token=${currentToken}`, {
-                    method: 'POST'
-                }).then(() => {
-                    // Remove the token from the cache
-                    chrome.identity.removeCachedAuthToken({ 'token': currentToken }, function() {
-                        alert('Token removed. Please reload the extension.');
-                        sendResponse({ token: null });
-                    });
-                }).catch(error => {
-                    console.error('Sign out error:', error);
-                });
-            } else {
-                alert('No token found.');
-                sendResponse({ token: null });
-            }
-        });
-        return true; // Indicates that the response is asynchronous
-    } else if (request.action === 'fetchFlowwatchEvents') {
-        fetchFlowwatchEventsFromCalendar(sendResponse);
-        return true; // Indicates that the response is asynchronous
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.local.set({
+    isRunning: false,
+    mode: 'focus',
+    startTime: null,
+    focusDuration: 0,
+    intention: '',
+    sessions: []
+  });
+  chrome.storage.sync.get('focusMinutes', ({ focusMinutes }) => {
+    if (!Number.isFinite(focusMinutes)) {
+      chrome.storage.sync.set({ focusMinutes: DEFAULT_FOCUS_MINUTES });
     }
+  });
+  updateBadge();
 });
 
-// Function to fetch all calendar events since the start of the year with "flowwatch" in their summary
-function fetchFlowwatchEventsFromCalendar(callback) {
-    chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
-        if (chrome.runtime.lastError) {
-            console.error(chrome.runtime.lastError);
-            return;
-        }
-
-        let now = new Date();
-        let startOfYear = new Date(now.getFullYear(), 0, 1).toISOString();
-        let endOfYear = new Date(now.getFullYear(), 11, 31, 23, 59, 59).toISOString();
-        let allEvents = [];
-
-        // Helper function to fetch a page of events
-        function fetchPage(pageToken = null) {
-            let init = {
-                method: 'GET',
-                async: true,
-                headers: {
-                    'Authorization': 'Bearer ' + token,
-                    'Content-Type': 'application/json'
-                },
-                'contentType': 'json'
-            };
-
-            let url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${startOfYear}&timeMax=${endOfYear}&q=flowwatch&singleEvents=true&orderBy=startTime&maxResults=250`;
-            if (pageToken) {
-                url += `&pageToken=${pageToken}`;
-            }
-
-            fetch(url, init)
-                .then((response) => response.json())
-                .then(function(data) {
-                    if (data.items) {
-                        allEvents = allEvents.concat(data.items);
-                    }
-                    
-                    if (data.nextPageToken) {
-                        // If there's a next page, fetch it
-                        fetchPage(data.nextPageToken);
-                    } else {
-                        // No more pages, return all events
-                        callback({ events: allEvents });
-                    }
-                })
-                .catch(function(error) {
-                    console.error('Error fetching events:', error);
-                });
-        }
-
-        // Start fetching from the first page
-        fetchPage();
-    });
+// Offscreen helpers for audio playback
+async function ensureOffscreenDocument() {
+  try {
+    if (chrome.offscreen && chrome.offscreen.hasDocument) {
+      const has = await chrome.offscreen.hasDocument();
+      if (has) return;
+    }
+  } catch (_) {}
+  await chrome.offscreen.createDocument({
+    url: 'offscreen.html',
+    reasons: [chrome.offscreen.Reason.AUDIO_PLAYBACK],
+    justification: 'Play binaural beats and alarm sounds during sessions'
+  });
 }
 
-// Add a listener for the runtime.onInstalled event to handle any setup when the extension is installed or updated
-chrome.runtime.onInstalled.addListener(function() {
-  chrome.identity.getAuthToken({ 'interactive': false }, function(token) {
-    if (chrome.runtime.lastError || !token) {
-      // No valid token, we are not authorized yet
-      chrome.tabs.create({ url: 'record.html' });
+function playFocusAudio() {
+  chrome.runtime.sendMessage({ type: 'audio:play' });
+}
+
+function pauseFocusAudio() {
+  chrome.runtime.sendMessage({ type: 'audio:pause' });
+}
+
+function playAlarm() {
+  chrome.runtime.sendMessage({ type: 'audio:alarm' });
+}
+
+async function closeOffscreenDocument() {
+  try {
+    if (chrome.offscreen) {
+      await chrome.offscreen.closeDocument();
     }
+  } catch (_) {}
+}
+
+function calculateBreakTime(focusMinutes) {
+  const proposed = Math.round(focusMinutes * 0.2);
+  return Math.max(MIN_BREAK_MINUTES, Math.min(MAX_BREAK_MINUTES, proposed));
+}
+
+function updateTimer() {
+  chrome.storage.local.get(['isRunning', 'mode', 'startTime'], (res) => {
+    if (!res.isRunning || !res.startTime) return;
+    const elapsed = Math.max(0, Math.floor((Date.now() - res.startTime) / 1000));
+    chrome.runtime.sendMessage({ type: 'updateTimer', elapsed, mode: res.mode });
+    updateBadge();
+  });
+}
+
+async function getUserIntention() {
+  const { promptIntention } = await chrome.storage.sync.get('promptIntention');
+  if (promptIntention === false) return '';
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.id) return '';
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => {
+        try {
+          // Return null on Cancel; '' on OK with empty input.
+          return window.prompt('What will you focus on?', '');
+        } catch (_) {
+          return '';
+        }
+      },
+    });
+    if (result === null) return null; // user clicked Cancel
+    return typeof result === 'string' ? result : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+async function startFocusSession(intention) {
+  chrome.alarms.clear(SESSION_ALARM_NAME);
+  const now = Date.now();
+  const { focusMinutes } = await chrome.storage.sync.get('focusMinutes').catch(() => ({}));
+  const plannedMinutes = Math.max(1, Number(focusMinutes) || DEFAULT_FOCUS_MINUTES);
+
+  await chrome.storage.local.set({
+    isRunning: true,
+    mode: 'focus',
+    startTime: now,
+    intention: intention || '',
+    plannedMinutes
+  });
+  chrome.alarms.create(TIMER_ALARM_NAME, { periodInMinutes: 1 / 60 });
+  updateBadge();
+  chrome.storage.sync.get(['playAudio'], async (res) => {
+    if (res.playAudio !== false) {
+      await ensureOffscreenDocument();
+      playFocusAudio();
+    }
+  });
+}
+
+function endFocusSession() {
+  const now = Date.now();
+  chrome.storage.local.get(['startTime', 'sessions', 'intention', 'plannedMinutes'], async (res) => {
+    const start = res.startTime || now;
+    const focusDurationSeconds = Math.max(0, Math.floor((now - start) / 1000));
+    const planned = Number(res.plannedMinutes) || 0;
+    const endedEarly = planned > 0 && focusDurationSeconds < planned * 60;
+
+
+    const sessions = Array.isArray(res.sessions) ? res.sessions : [];
+    const startISO = new Date(start).toISOString();
+    const endISO = new Date(now).toISOString();
+
+    if (focusDurationSeconds > 0) {
+      sessions.push({
+        start: startISO,
+        end: endISO,
+        durationSec: focusDurationSeconds,
+        intention: res.intention || ''
+      });
+      chrome.storage.local.set({ sessions });
+    }
+
+    if (endedEarly) {
+      // Ended before planned time: stop cleanly without alarm or break, but record the session
+      chrome.alarms.clear(TIMER_ALARM_NAME);
+      chrome.alarms.clear(SESSION_ALARM_NAME);
+      pauseFocusAudio();
+      closeOffscreenDocument();
+      await chrome.storage.local.set({
+        isRunning: false,
+        mode: 'focus',
+        startTime: null,
+        plannedMinutes: 0
+      });
+      clearBadge();
+      return;
+    }
+
+    await ensureOffscreenDocument();
+    pauseFocusAudio();
+    playAlarm();
+
+    const breakMinutes = calculateBreakTime(focusDurationSeconds / 60);
+    chrome.storage.local.set({
+      isRunning: true,
+      mode: 'break',
+      startTime: now,
+      plannedMinutes: breakMinutes
+    });
+    chrome.alarms.create(SESSION_ALARM_NAME, { when: now + breakMinutes * 60 * 1000 });
+    updateBadge();
+
+    chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'images/icon96.png',
+      title: 'Break time',
+      message: `Take a ${breakMinutes} min break`
+    });
+  });
+}
+
+function finishBreak() {
+  chrome.storage.local.get(['mode'], (res) => {
+    if (res.mode !== 'break') return;
+    chrome.storage.local.set({
+      isRunning: false,
+      mode: 'focus',
+      startTime: null,
+      plannedMinutes: 0
+    });
+    pauseFocusAudio();
+    closeOffscreenDocument();
+    clearBadge();
+    chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'images/icon96.png',
+      title: 'Break over',
+      message: 'Ready to focus again'
+    });
+  });
+}
+
+function resetTimer() {
+  chrome.alarms.clearAll();
+  pauseFocusAudio();
+  closeOffscreenDocument();
+  chrome.storage.local.set({
+    isRunning: false,
+    mode: 'focus',
+    startTime: null,
+    focusDuration: 0,
+    intention: '',
+    plannedMinutes: 0
+  });
+  clearBadge();
+  chrome.runtime.sendMessage({ type: 'resetUI' });
+}
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === TIMER_ALARM_NAME) {
+    updateTimer();
+  } else if (alarm.name === SESSION_ALARM_NAME) {
+    finishBreak();
+  }
+});
+
+chrome.action.onClicked.addListener(async () => {
+  chrome.storage.local.get(['isRunning', 'mode'], async (res) => {
+    try {
+      if (res.isRunning) {
+        if (res.mode === 'focus') {
+          endFocusSession();
+        } else if (res.mode === 'break') {
+          finishBreak();
+        }
+        return;
+      }
+
+      const intention = await getUserIntention();
+      if (intention === null) {
+        // User canceled the prompt; do not start.
+        return;
+      }
+      await startFocusSession(intention);
+    } catch (_) {}
   });
 });
 
-chrome.browserAction.onClicked.addListener(startStopwatch);
-
-// Helper function to fetch all visible calendar IDs
-function fetchCalendarList(callback) {
-  chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
-    if (chrome.runtime.lastError) {
-      console.error(chrome.runtime.lastError);
-      return;
-    }
-
-    let init = {
-      method: 'GET',
-      async: true,
-      headers: {
-        'Authorization': 'Bearer ' + token,
-        'Content-Type': 'application/json'
-      },
-      'contentType': 'json'
-    };
-
-    fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', init)
-      .then((response) => response.json())
-      .then(function(data) {
-        let calendarIds = data.items
-          .filter(calendar => calendar.selected) // Only consider selected (visible) calendars
-          .map(calendar => calendar.id);
-        callback(calendarIds);
-      })
-      .catch(function(error) {
-        console.error('Error fetching calendar list:', error);
-      });
-  });
-}
-
-// Modified helper function to fetch the next calendar event from a specific calendar
-function fetchNextCalendarEvent(calendarId, callback) {
-  chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
-    if (chrome.runtime.lastError) {
-      console.error(chrome.runtime.lastError);
-      return;
-    }
-
-    let timeMin = new Date().toISOString(); // Current time in ISO format
-    let timeMax = new Date(Date.now() + stopwatch.maxDuration).toISOString(); // maxDuration from now
-
-    // Define the API request parameters
-    let init = {
-      method: 'GET',
-      async: true,
-      headers: {
-        'Authorization': 'Bearer ' + token,
-        'Content-Type': 'application/json'
-      },
-      'contentType': 'json',
-    };
-
-    // Make the API request to get the next event
-    fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`, init)
-      .then((response) => response.json())
-      .then(function(data) {
-        if (data.items && data.items.length > 0) {
-          // Find the next event that is not an all-day event
-          let nextEvent = data.items.find(event => event.start.dateTime);
-          if (nextEvent) {
-            callback(new Date(nextEvent.start.dateTime)); // Pass the start time of the next event to the callback
-          } else {
-            callback(null); // No next event found
-          }
-        } else {
-            callback(null); // No next event found
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  switch (msg && msg.type) {
+    case 'startFocus':
+      startFocusSession(msg.intention || '');
+      sendResponse({ ok: true });
+      return true;
+    case 'endFlow':
+      chrome.storage.local.get(['mode'], (res) => {
+        if (res.mode === 'focus') {
+          endFocusSession();
         }
-      })
-      .catch(function(error) {
-        console.error('Error fetching next calendar event:', error);
       });
-  });
-}
-
-// Function to fetch the user's timezone
-function fetchUserTimezone(callback) {
-  chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
-    if (chrome.runtime.lastError) {
-      console.error(chrome.runtime.lastError);
-      return;
-    }
-
-    // Define the API request parameters
-    let init = {
-      method: 'GET',
-      async: true,
-      headers: {
-        'Authorization': 'Bearer ' + token,
-        'Content-Type': 'application/json'
-      },
-    };
-
-    // Make the API request to get the user's settings
-    fetch('https://www.googleapis.com/calendar/v3/users/me/settings/timezone', init)
-      .then((response) => response.json())
-      .then(function(data) {
-        console.log('User timezone:', data);
-        callback(data.value); // Pass the timezone to the callback
-      })
-      .catch(function(error) {
-        console.error('Error fetching user timezone:', error);
-      });
-  });
-}
-
-// Function to create an event on Google Calendar with the user's timezone
-function createGoogleCalendarEvent(event, timezone) {
-  chrome.identity.getAuthToken({ 'interactive': true }, function(token) {
-    if (chrome.runtime.lastError) {
-      console.error(chrome.runtime.lastError);
-      return;
-    }
-
-    // Define the API request parameters
-    let init = {
-      method: 'POST',
-      async: true,
-      headers: {
-        'Authorization': 'Bearer ' + token,
-        'Content-Type': 'application/json'
-      },
-      'body': JSON.stringify(event),
-      'contentType': 'json'
-    };
-
-    // Make the API request to create the event
-    fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', init)
-      .then((response) => response.json())
-      .then(function(data) {
-        console.log('Created Google Calendar event:', data);
-      })
-      .catch(function(error) {
-        console.error('Error creating Google Calendar event:', error);
-      });
-  });
-}
+      sendResponse({ ok: true });
+      return true;
+    case 'reset':
+      resetTimer();
+      sendResponse({ ok: true });
+      return true;
+    case 'getSessions':
+      chrome.storage.local.get(['sessions'], (res) =>
+        sendResponse({ sessions: res.sessions || [] })
+      );
+      return true;
+    default:
+      break;
+  }
+});

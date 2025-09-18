@@ -1,70 +1,43 @@
-// This script will be responsible for handling the OAuth2 flow
-// It will communicate with the background script to initiate the authorization process
-
 let flowwatchEvents = [];
 
 document.addEventListener('DOMContentLoaded', function() {
-    //
-    // Add event listeners to the buttons for OAuth
-    const authorizeBtn = document.getElementById('authorize_button');
-    const signoutBtn = document.getElementById('signout_button');
-
-    if (authorizeBtn && signoutBtn && chrome.identity) {
-      authorizeBtn.addEventListener('click', () => {
-        chrome.runtime.sendMessage({ action: 'authorize' });
-      });
-      signoutBtn.addEventListener('click', () => {
-        chrome.runtime.sendMessage({ action: 'signout' });
-      });
-
-      if (chrome.identity.getAuthToken) {
-        chrome.identity.getAuthToken({ interactive: false }, (token) => {
-          authorizeBtn.style.display = token ? 'none' : 'inline-block';
-          signoutBtn.style.display = token ? 'inline-block' : 'none';
-        });
-      }
-    } else {
-      if (authorizeBtn) authorizeBtn.style.display = 'none';
-      if (signoutBtn) signoutBtn.style.display = 'none';
-    }
-
-
+    // Binaural audio toggle using storage.local
     const playAudioToggle = document.getElementById('playAudioToggle');
-    if (playAudioToggle) {
-      chrome.storage.sync.get('playAudio', (data) => {
-        playAudioToggle.checked = data.playAudio !== false;
-      });
-      playAudioToggle.addEventListener('change', () => {
-        chrome.storage.sync.set({ playAudio: playAudioToggle.checked });
-      });
-    }
+    chrome.storage.local.get('playAudio', (data) => {
+        playAudioToggle.checked = data.playAudio !== false; // default true if not set
+    });
+    playAudioToggle.addEventListener('change', () => {
+        chrome.storage.local.set({ 'playAudio': playAudioToggle.checked });
+    });
 
-    // Default focus length
-    const focusMinutesInput = document.getElementById('focusMinutesInput');
-    if (focusMinutesInput) {
-        chrome.storage.sync.get('focusMinutes', ({ focusMinutes }) => {
-            const val = Number(focusMinutes);
-            focusMinutesInput.value = Number.isFinite(val) && val > 0 ? val : 15;
-        });
-        focusMinutesInput.addEventListener('change', () => {
-            const n = Math.max(1, parseInt(focusMinutesInput.value, 10) || 15);
-            focusMinutesInput.value = n;
-            chrome.storage.sync.set({ focusMinutes: n });
-        });
-    }
+    // Timer control wiring
+    document.getElementById('start_focus_button').addEventListener('click', () => {
+        const intention = document.getElementById('intention_input')?.value || '';
+        chrome.runtime.sendMessage({ type: 'startFocus', intention });
+    });
+    document.getElementById('end_flow_button').addEventListener('click', () => {
+        chrome.runtime.sendMessage({ type: 'endFlow' });
+    });
+    document.getElementById('reset_button').addEventListener('click', () => {
+        chrome.runtime.sendMessage({ type: 'reset' });
+    });
 
+    // Message listener to update timer display
+    chrome.runtime.onMessage.addListener((msg) => {
+        if (msg.type === 'updateTimer') {
+            const sec = Math.max(0, msg.elapsed | 0);
+            const m = String(Math.floor(sec / 60)).padStart(2, '0');
+            const s = String(sec % 60).padStart(2, '0');
+            const mode = msg.mode === 'break' ? ' (break)' : '';
+            const el = document.getElementById('timer_display');
+            if (el) el.textContent = `${m}:${s}${mode}`;
+        } else if (msg.type === 'resetUI') {
+            const el = document.getElementById('timer_display');
+            if (el) el.textContent = '00:00';
+        }
+    });
 
-    const promptIntentionToggle = document.getElementById('promptIntentionToggle');
-    if (promptIntentionToggle) {
-      chrome.storage.sync.get('promptIntention', (data) => {
-        promptIntentionToggle.checked = data.promptIntention !== false;
-      });
-      promptIntentionToggle.addEventListener('change', () => {
-        chrome.storage.sync.set({ promptIntention: promptIntentionToggle.checked });
-      });
-    }
-
-    // Function to retrieve recorded sessions and aggregate by date
+    // Function to retrieve local sessions and aggregate duration by day
     function fetchFlowwatchEvents() {
         chrome.runtime.sendMessage({ type: 'getSessions' }, function(response) {
             if (response && response.sessions) {
@@ -73,18 +46,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     const startTime = new Date(s.start);
                     const endTime = new Date(s.end);
                     const dateKey = startTime.toISOString().split('T')[0];
-                    const durationHours = Math.max(
-                        0,
-                        s.durationSec ? (s.durationSec / 3600) : ((endTime - startTime) / (1000 * 60 * 60))
-                    );
+                    const durationHours = Math.max(0, (endTime - startTime) / (1000 * 60 * 60));
                     eventsByDate.set(dateKey, (eventsByDate.get(dateKey) || 0) + durationHours);
                 });
-
                 flowwatchEvents = Array.from(eventsByDate.entries()).map(([date, totalHours]) => ({
-                    date: date,
-                    value: parseFloat(totalHours.toFixed(2)),
+                    date,
+                    value: parseFloat(totalHours.toPrecision(2))
                 }));
-
                 updateCalendar(currentView);
             }
         });
@@ -95,28 +63,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const monthView = document.getElementById('monthView');
     const prevButton = document.getElementById('prevButton');
     const nextButton = document.getElementById('nextButton');
-    
+
     let currentView = 'year';
     let cal;
 
     function updateCalendar(viewType, customDate = null) {
-        const container = document.getElementById('cal-heatmap');
-        if (container) container.innerHTML = '';
-        if (cal) {
+        if (cal && cal.destroy) {
             cal.destroy();
         }
-        
+
         cal = new CalHeatmap();
         const config = {
-            itemSelector: '#cal-heatmap',
             date: {
-                start: customDate || (viewType === 'year' 
+                start: customDate || (viewType === 'year'
                     ? new Date(new Date().getFullYear(), 0, 1)  // January 1st of current year
                     : new Date(new Date().getFullYear(), new Date().getMonth(), 1)) // First day of current month
             },
             data: {
                 source: flowwatchEvents,
-                type: 'json',
                 x: 'date',
                 y: 'value',
             },
@@ -145,7 +109,17 @@ document.addEventListener('DOMContentLoaded', function() {
             verticalOrientation: true,
         };
 
-        cal.paint(config);
+        cal.paint(config, [
+            [
+                Tooltip,
+                {
+                    text: function (date, value, dayjsDate) {
+                        let displayValue = value ? parseFloat(value).toFixed(2) : 'No data';
+                        return `${displayValue} hours on ${dayjsDate.format('MM-DD')}`;
+                    },
+                },
+            ],
+        ]);
     }
 
     weekView.addEventListener('click', () => {
@@ -163,11 +137,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     prevButton.addEventListener('click', () => {
-        if (cal && typeof cal.previous === 'function') cal.previous();
+        if (cal && cal.previous) cal.previous();
     });
 
     nextButton.addEventListener('click', () => {
-        if (cal && typeof cal.next === 'function') cal.next();
+        if (cal && cal.next) cal.next();
     });
 
     // Initialize calendar
