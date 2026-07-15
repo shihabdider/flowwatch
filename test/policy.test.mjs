@@ -2,20 +2,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  INSTRUMENTS,
   MODES,
+  STORAGE_DEFAULTS,
   STYLES,
+  STYLE_VOICES,
+  VOICES,
   normalizeAudioSettings,
   profileFor,
 } from '../audio/policy.mjs';
 
-test('audio settings use approved defaults', () => {
-  assert.deepEqual(normalizeAudioSettings({}), {
-    focusHz: 16,
-    relaxHz: 10,
+test('audio settings use the approved 12/8 defaults', () => {
+  assert.deepEqual(STORAGE_DEFAULTS, {
+    focusHz: 12,
+    relaxHz: 8,
     musicStyle: 'ambient',
-    instrument: 'existing',
   });
+  assert.deepEqual(normalizeAudioSettings({}), STORAGE_DEFAULTS);
 });
 
 test('focus and relax rates clamp to their approved ranges', () => {
@@ -27,36 +29,90 @@ test('focus and relax rates clamp to their approved ranges', () => {
   assert.equal(normalizeAudioSettings({ relaxHz: '9.5' }).relaxHz, 9.5);
 });
 
-test('unknown style and instrument values fall back safely', () => {
+test('unknown styles fall back and legacy instrument settings are ignored', () => {
   const settings = normalizeAudioSettings({ musicStyle: 'jazz', instrument: 'flute' });
-  assert.equal(settings.musicStyle, 'ambient');
-  assert.equal(settings.instrument, 'existing');
+  assert.deepEqual(settings, STORAGE_DEFAULTS);
+  assert.equal('instrument' in settings, false);
 });
 
-test('every approved mode/style/instrument combination yields a complete profile', () => {
+test('each approved style owns exactly one voice', () => {
+  assert.deepEqual(VOICES, ['synth', 'piano', 'harpsichord']);
+  assert.deepEqual(STYLE_VOICES, {
+    ambient: 'synth',
+    classical: 'piano',
+    baroque: 'harpsichord',
+  });
+
   for (const mode of MODES) {
     for (const musicStyle of STYLES) {
-      for (const instrument of INSTRUMENTS) {
-        const profile = profileFor(mode, { musicStyle, instrument });
-        assert.equal(profile.mode, mode);
-        assert.equal(profile.style, musicStyle);
-        assert.equal(profile.instrument, instrument);
-        assert.ok(profile.bpm > 0);
-        assert.ok(profile.chords.length >= 3);
-        assert.ok(profile.scale.length >= 5);
-        assert.ok(profile.modFreq >= profile.rateRange.min);
-        assert.ok(profile.modFreq <= profile.rateRange.max);
-      }
+      const profile = profileFor(mode, { musicStyle, instrument: 'ignored' });
+      assert.equal(profile.mode, mode);
+      assert.equal(profile.style, musicStyle);
+      assert.equal(profile.voice, STYLE_VOICES[musicStyle]);
+      assert.equal('instrument' in profile, false);
+      assert.ok(profile.chords.length >= 3);
+      assert.ok(profile.scale.length >= 5);
+      assert.ok(profile.modFreq >= profile.rateRange.min);
+      assert.ok(profile.modFreq <= profile.rateRange.max);
     }
   }
 });
 
-test('mode-specific modulation settings do not alter style or instrument', () => {
-  const raw = { focusHz: 13, relaxHz: 9, musicStyle: 'baroque', instrument: 'harpsichord' };
-  assert.equal(profileFor('focus', raw).modFreq, 13);
-  assert.equal(profileFor('relax', raw).modFreq, 9);
-  assert.equal(profileFor('focus', raw).style, 'baroque');
-  assert.equal(profileFor('relax', raw).instrument, 'harpsichord');
+test('every style profile exposes multiple caller-owned nearby key offsets', () => {
+  for (const mode of MODES) {
+    for (const musicStyle of STYLES) {
+      const first = profileFor(mode, { musicStyle });
+      const second = profileFor(mode, { musicStyle });
+      assert.ok(first.keyOffsets.length >= 7);
+      assert.ok(first.keyOffsets.includes(0));
+      assert.ok(first.keyOffsets.some((offset) => offset < 0));
+      assert.ok(first.keyOffsets.some((offset) => offset > 0));
+      first.keyOffsets.push(99);
+      assert.equal(second.keyOffsets.includes(99), false);
+    }
+  }
+});
+
+test('the approved style tempos remain unchanged', () => {
+  assert.deepEqual(
+    Object.fromEntries(STYLES.map((style) => [style, [
+      profileFor('focus', { musicStyle: style }).bpm,
+      profileFor('relax', { musicStyle: style }).bpm,
+    ]])),
+    {
+      ambient: [96, 72],
+      classical: [88, 68],
+      baroque: [104, 76],
+    },
+  );
+});
+
+const pitchClass = (midi) => ((midi % 12) + 12) % 12;
+
+test('keyboard styles encode tonic-predominant-dominant-tonic harmony', () => {
+  for (const musicStyle of ['classical', 'baroque']) {
+    for (const mode of MODES) {
+      const profile = profileFor(mode, { musicStyle });
+      assert.deepEqual(
+        profile.chords.map((chord) => pitchClass(chord[0] - profile.rootMidi)),
+        [0, 5, 7, 0],
+      );
+      assert.deepEqual(
+        profile.chords[2].map((pitch) => pitchClass(pitch - profile.chords[2][0])),
+        [0, 4, 7],
+      );
+    }
+  }
+});
+
+test('modulation settings alter only the selected neural rate', () => {
+  const raw = { focusHz: 13, relaxHz: 9, musicStyle: 'baroque' };
+  const focus = profileFor('focus', raw);
+  const relax = profileFor('relax', raw);
+  assert.equal(focus.modFreq, 13);
+  assert.equal(relax.modFreq, 9);
+  assert.equal(focus.style, 'baroque');
+  assert.equal(relax.voice, 'harpsichord');
 });
 
 test('sleep and other unapproved modes are rejected', () => {

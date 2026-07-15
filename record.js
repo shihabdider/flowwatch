@@ -85,10 +85,9 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     }
 
-    bindRateInput('focusHzInput', 'focusHz', 12, 16, 16);
-    bindRateInput('relaxHzInput', 'relaxHz', 8, 12, 10);
+    bindRateInput('focusHzInput', 'focusHz', 12, 16, 12);
+    bindRateInput('relaxHzInput', 'relaxHz', 8, 12, 8);
     bindSelect('musicStyleSelect', 'musicStyle', ['ambient', 'classical', 'baroque'], 'ambient');
-    bindSelect('instrumentSelect', 'instrument', ['existing', 'piano', 'harpsichord'], 'existing');
 
     const promptIntentionToggle = document.getElementById('promptIntentionToggle');
     if (promptIntentionToggle) {

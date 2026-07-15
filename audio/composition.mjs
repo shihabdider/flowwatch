@@ -3,6 +3,7 @@
 // tonal cadences, A/A-prime/B/A-prime form, and best-of-N comfort selection.
 
 const pitchClass = (midi) => ((midi % 12) + 12) % 12;
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 function weightedChoice(candidates, rng) {
   const total = candidates.reduce((sum, candidate) => sum + candidate.weight, 0);
@@ -154,8 +155,8 @@ export function generatePhrasePlanned(options) {
     }
   }
 
-  const low = options.rootMidi + 12 * octave;
-  const high = low + 12;
+  const low = options.lowMidi ?? options.rootMidi + 12 * octave;
+  const high = Math.max(low + 1, options.highMidi ?? low + 12);
   const center = (low + high) / 2;
   const range = (high - low) * 0.45;
   const arch = options.contour
@@ -293,43 +294,6 @@ export function generatePhrase(options) {
   return generatePhrasePlanned(options).phrase;
 }
 
-function onsetEnvelope(phrase, sampleRate = 200) {
-  const length = Math.max(1, Math.round(phrase.duration * sampleRate));
-  const envelope = new Float32Array(length);
-  const attack = Math.max(1, Math.round(0.01 * sampleRate));
-  for (const note of phrase.notes) {
-    const start = Math.round(note.start * sampleRate);
-    const end = Math.min(length, Math.round(note.end * sampleRate));
-    for (let index = Math.max(0, start); index < end; index++) {
-      const elapsed = index - start;
-      const amplitude = elapsed < attack
-        ? elapsed / attack
-        : 0.55 + 0.45 * Math.exp(-(elapsed - attack) / (0.25 * sampleRate));
-      envelope[index] = Math.max(envelope[index], note.velocity * amplitude);
-    }
-  }
-  return envelope;
-}
-
-function amplitudeAt(signal, frequency, sampleRate) {
-  const mean = signal.reduce((sum, value) => sum + value, 0) / signal.length;
-  const angularStep = (2 * Math.PI * frequency) / sampleRate;
-  let real = 0;
-  let imaginary = 0;
-  for (let index = 0; index < signal.length; index++) {
-    const centered = signal[index] - mean;
-    real += centered * Math.cos(angularStep * index);
-    imaginary += centered * Math.sin(angularStep * index);
-  }
-  return (2 / signal.length) * Math.hypot(real, imaginary);
-}
-
-function entrainmentScore(phrase, modFreq, sampleRate = 200) {
-  const envelope = onsetEnvelope(phrase, sampleRate);
-  const mean = envelope.reduce((sum, value) => sum + value, 0) / envelope.length;
-  return mean < 1e-6 ? 0 : amplitudeAt(envelope, modFreq, sampleRate) / mean;
-}
-
 function comfortPenalty(phrase) {
   if (!phrase.notes.length) return 1;
   const notesPerSecond = phrase.notes.length / phrase.duration;
@@ -368,10 +332,8 @@ function predictabilityPenalty(phrase, band = { lo: 2, hi: 3.2 }) {
   return 0.5 * deviation ** 2;
 }
 
-export function scorePhrase(phrase, modFreq, band) {
-  return entrainmentScore(phrase, modFreq)
-    - comfortPenalty(phrase)
-    - predictabilityPenalty(phrase, band);
+export function scorePhrase(phrase, band) {
+  return -comfortPenalty(phrase) - predictabilityPenalty(phrase, band);
 }
 
 const FORM = Object.freeze(['A', "A'", 'B', "A'"]);
@@ -390,12 +352,12 @@ export class PhraseFormer {
     this.lastPitch = null;
   }
 
-  bestOf(options, modFreq, band) {
+  bestOf(options, band) {
     let best = null;
     let bestScore = -Infinity;
     for (let index = 0; index < this.candidateCount; index++) {
       const candidate = generatePhrasePlanned({ ...options, rng: this.rng });
-      const candidateScore = scorePhrase(candidate.phrase, modFreq, band);
+      const candidateScore = scorePhrase(candidate.phrase, band);
       if (candidateScore > bestScore) {
         best = candidate;
         bestScore = candidateScore;
@@ -404,13 +366,13 @@ export class PhraseFormer {
     return best;
   }
 
-  next(base, modFreq, band) {
+  next(base, band) {
     const section = FORM[this.position % FORM.length];
     this.position++;
     const startPitch = this.lastPitch ?? undefined;
     let result;
     if (section === 'A' || !this.theme) {
-      result = this.bestOf({ ...base, startPitch, cadence: 'tonic' }, modFreq, band);
+      result = this.bestOf({ ...base, startPitch, cadence: 'tonic' }, band);
       this.theme = result;
     } else if (section === 'B') {
       result = this.bestOf({
@@ -418,7 +380,7 @@ export class PhraseFormer {
         startPitch,
         contour: this.theme.plan.arch ? 'descend' : 'arch',
         cadence: 'dominant',
-      }, modFreq, band);
+      }, band);
     } else {
       result = generatePhrasePlanned({
         ...base,
@@ -432,5 +394,867 @@ export class PhraseFormer {
     }
     this.lastPitch = result.lastPitch;
     return result.phrase;
+  }
+}
+
+const barDurationFor = (profile) => (60 / profile.bpm) * 4;
+
+function event(pitch, start, duration, velocity, role) {
+  return {
+    pitch,
+    start,
+    duration: Math.max(0.03, duration),
+    velocity: Math.max(0.05, Math.min(1, velocity)),
+    role,
+  };
+}
+
+function eventsFromPhrase(phrase, offset = 0, role = 'lead', velocityScale = 1) {
+  return phrase.notes.map((note) => event(
+    note.pitch,
+    offset + note.start,
+    note.end - note.start,
+    note.velocity * velocityScale,
+    role,
+  ));
+}
+
+function sortedChunk(duration, events, metadata = {}) {
+  return {
+    ...metadata,
+    duration,
+    events: events.sort((left, right) => left.start - right.start || left.pitch - right.pitch),
+  };
+}
+
+function nearestScaleNeighbor(profile, pitch, direction) {
+  const classes = new Set(profile.scale.map((offset) => pitchClass(profile.rootMidi + offset)));
+  for (let distance = 1; distance <= 3; distance++) {
+    const candidate = pitch + distance * direction;
+    if (classes.has(pitchClass(candidate))) return candidate;
+  }
+  return pitch + 2 * direction;
+}
+
+function withoutCoincidentDuplicates(events) {
+  const byOnsetAndPitch = new Map();
+  for (const musicalEvent of events) {
+    const key = `${musicalEvent.start.toFixed(9)}:${musicalEvent.pitch}`;
+    const existing = byOnsetAndPitch.get(key);
+    if (!existing || musicalEvent.velocity > existing.velocity) {
+      byOnsetAndPitch.set(key, musicalEvent);
+    }
+  }
+  return [...byOnsetAndPitch.values()];
+}
+
+const AMBIENT_PROGRESSIONS = Object.freeze([
+  Object.freeze([0, 3, 5, 4]),
+  Object.freeze([0, 5, 3, 4]),
+  Object.freeze([5, 3, 0, 4]),
+  Object.freeze([0, 1, 5, 4]),
+  Object.freeze([0, 3, 1, 4]),
+  Object.freeze([0, 5, 1, 3]),
+  Object.freeze([3, 0, 5, 4]),
+  Object.freeze([0, 2, 3, 4]),
+]);
+
+const AMBIENT_BASS_PATTERNS = Object.freeze([
+  Object.freeze([0]),
+  Object.freeze([0, 2]),
+  Object.freeze([0, 1, 2, 3]),
+  Object.freeze([0, 0.5, 2, 2.5]),
+  Object.freeze([0, 1.5, 2.5, 3.5]),
+  Object.freeze([0, 0.75, 1.5, 2.25, 3]),
+  Object.freeze([0, 1, 1.5, 2.5, 3]),
+  Object.freeze([0, 0.5, 1.5, 2, 3, 3.5]),
+]);
+
+const CLASSICAL_PROGRESSIONS = Object.freeze([
+  Object.freeze([0, 4, 3, 0]),
+  Object.freeze([0, 4, 5, 0]),
+  Object.freeze([5, 4, 1, 0]),
+  Object.freeze([3, 4, 1, 0]),
+  Object.freeze([0, 4, 4, 0]),
+  Object.freeze([5, 4, 3, 0]),
+  Object.freeze([0, 4, 1, 0]),
+  Object.freeze([3, 4, 5, 0]),
+]);
+
+const BAROQUE_PROGRESSIONS = Object.freeze({
+  A: Object.freeze([
+    Object.freeze([0, 3, 1, 4]),
+    Object.freeze([0, 5, 3, 4]),
+    Object.freeze([0, 1, 3, 4]),
+    Object.freeze([0, 5, 1, 4]),
+    Object.freeze([0, 3, 5, 4]),
+    Object.freeze([0, 1, 5, 4]),
+  ]),
+  B: Object.freeze([
+    Object.freeze([4, 5, 3, 0]),
+    Object.freeze([4, 1, 4, 0]),
+    Object.freeze([4, 3, 1, 0]),
+    Object.freeze([4, 5, 1, 0]),
+    Object.freeze([4, 3, 4, 0]),
+    Object.freeze([4, 1, 3, 0]),
+  ]),
+});
+
+const CLASSICAL_ACCOMPANIMENT_PATTERNS = Object.freeze([
+  Object.freeze([0, 2, 1, 2, 0, 2, 1, 2]),
+  Object.freeze([0, 1, 2, 1, 0, 1, 2, 1]),
+  Object.freeze([0, 2, 1, 2, 2, 1, 0, 1]),
+  Object.freeze([0, 1, 2, 1, 0, 2, 1, 2]),
+  Object.freeze([1, 2, 0, 2, 1, 2, 0, 2]),
+  Object.freeze([2, 1, 0, 1, 2, 1, 0, 1]),
+  Object.freeze([0, 2, 0, 1, 0, 2, 0, 1]),
+  Object.freeze([1, 0, 2, 0, 1, 0, 2, 0]),
+  Object.freeze([2, 0, 1, 0, 2, 0, 1, 0]),
+  Object.freeze([0, 1, 0, 2, 1, 2, 1, 0]),
+]);
+
+const BAROQUE_BROKEN_CHORD_PATTERNS = Object.freeze([
+  Object.freeze([0, 1, 2, 1, 0, 2, 1, 2, 0, 1, 2, 1, 0, 2, 1, 2]),
+  Object.freeze([0, 2, 1, 2, 0, 1, 2, 1, 0, 2, 1, 2, 0, 1, 2, 1]),
+  Object.freeze([2, 1, 0, 1, 2, 0, 1, 0, 2, 1, 0, 1, 2, 0, 1, 0]),
+  Object.freeze([0, 1, 2, 0, 1, 2, 1, 0, 2, 1, 0, 2, 0, 2, 1, 2]),
+  Object.freeze([1, 0, 2, 0, 1, 2, 0, 2, 1, 0, 2, 0, 1, 2, 1, 2]),
+  Object.freeze([0, 2, 0, 1, 2, 1, 0, 1, 0, 2, 0, 1, 2, 1, 2, 1]),
+  Object.freeze([2, 0, 1, 2, 1, 0, 2, 1, 0, 2, 0, 1, 0, 1, 2, 1]),
+  Object.freeze([1, 2, 0, 2, 1, 0, 1, 2, 0, 1, 2, 1, 0, 2, 0, 1]),
+]);
+
+const BAROQUE_ACCOMPANIMENT_GRIDS = Object.freeze([
+  Object.freeze([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]),
+  Object.freeze([0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 15]),
+  Object.freeze([0, 2, 4, 6, 8, 10, 12, 14]),
+  Object.freeze([0, 1, 3, 4, 6, 8, 9, 11, 13, 15]),
+  Object.freeze([0, 1, 2, 3, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15]),
+  Object.freeze([0, 2, 3, 5, 7, 8, 10, 12, 14]),
+  Object.freeze([0, 1, 3, 4, 6, 7, 9, 10, 12, 13, 15]),
+  Object.freeze([0, 1, 2, 4, 5, 7, 8, 9, 11, 12, 14, 15]),
+]);
+
+const BAROQUE_GESTURE_COLUMNS = Object.freeze([
+  Object.freeze([0, 1, 2, 3, 5, 7, 9, 11, 13, 15]),
+  Object.freeze([0, 1, 2, 3, 4, 6, 8, 10, 12, 14, 15]),
+  Object.freeze([0, 1, 2, 3, 6, 8, 10, 12, 15]),
+]);
+
+const BAROQUE_LEAD_COLUMNS = Object.freeze([
+  Object.freeze([0, 2, 4, 6, 8, 10, 12, 14, 15]),
+  Object.freeze([0, 1, 3, 5, 7, 9, 11, 13, 15]),
+  Object.freeze([0, 2, 3, 6, 8, 9, 12, 14, 15]),
+  Object.freeze([0, 3, 4, 7, 8, 11, 12, 15]),
+  Object.freeze([0, 1, 4, 5, 8, 9, 12, 13, 15]),
+  Object.freeze([0, 2, 5, 7, 10, 12, 15]),
+  Object.freeze([0, 1, 2, 3, 5, 7, 9, 11, 13, 15]),
+  Object.freeze([0, 1, 2, 3, 4, 6, 8, 10, 12, 14, 15]),
+  Object.freeze([0, 1, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15]),
+  Object.freeze([0, 1, 2, 3, 4, 5, 7, 8, 10, 11, 13, 15]),
+  Object.freeze([0, 1, 2, 3, 4, 6, 7, 9, 10, 12, 13, 15]),
+  Object.freeze([0, 1, 2, 3, 5, 7, 8, 10, 11, 12, 14, 15]),
+  Object.freeze([0, 1, 2, 3, 4, 5, 6, 8, 9, 11, 13, 15]),
+  Object.freeze([0, 1, 2, 3, 6, 7, 8, 9, 10, 12, 14, 15]),
+  Object.freeze([0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 14, 15]),
+  Object.freeze([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15]),
+  Object.freeze([0, 1, 2, 3, 6, 8, 10, 12, 15]),
+  Object.freeze([0, 1, 2, 3, 5, 8, 11, 13, 15]),
+]);
+
+function choiceIndex(rng, length, offset = 0) {
+  if (length <= 1) return 0;
+  const draw = Number(rng());
+  const bounded = Number.isFinite(draw) ? clamp(draw, 0, 1 - Number.EPSILON) : 0;
+  return (Math.floor(bounded * length) + offset) % length;
+}
+
+function choice(values, rng, offset = 0) {
+  return values[choiceIndex(rng, values.length, offset)];
+}
+
+function pitchClassInRange(target, reference, low, high) {
+  const wanted = pitchClass(target);
+  let best = null;
+  let distance = Infinity;
+  for (let pitch = Math.ceil(low); pitch <= Math.floor(high); pitch++) {
+    if (pitchClass(pitch) !== wanted) continue;
+    const candidateDistance = Math.abs(pitch - reference);
+    if (candidateDistance < distance) {
+      best = pitch;
+      distance = candidateDistance;
+    }
+  }
+  if (best === null) throw new RangeError(`Pitch class ${wanted} is unavailable in ${low}-${high}`);
+  return best;
+}
+
+function scalePitch(profile, degree) {
+  const length = profile.scale.length;
+  const octave = Math.floor(degree / length);
+  const index = ((degree % length) + length) % length;
+  return profile.rootMidi + profile.scale[index] + octave * 12;
+}
+
+function scaleChord(profile, degree, toneCount = 3) {
+  const pitches = [];
+  for (let tone = 0; tone < toneCount; tone++) {
+    let pitch = scalePitch(profile, degree + tone * 2);
+    while (pitches.length > 0 && pitch <= pitches.at(-1)) pitch += 12;
+    pitches.push(pitch);
+  }
+  return pitches;
+}
+
+function scaleTriad(profile, degree) {
+  return scaleChord(profile, degree, 3);
+}
+
+function profileWithProgression(profile, degrees, toneCount = 3) {
+  return {
+    ...profile,
+    chords: degrees.map((degree) => scaleChord(profile, degree, toneCount)),
+  };
+}
+
+function transposeProfile(profile, semitones) {
+  return {
+    ...profile,
+    rootMidi: profile.rootMidi + semitones,
+    chords: profile.chords.map((chord) => chord.map((pitch) => pitch + semitones)),
+    keyOffsets: [...(profile.keyOffsets ?? [0])],
+  };
+}
+
+function lowKeyboardPitch(profile, pitch, reference = profile.rootMidi - 10) {
+  return pitchClassInRange(pitch, reference, 31, 45);
+}
+
+function middleChordVoicing(profile, chord, inversion = 0) {
+  const ordered = [...chord.slice(inversion), ...chord.slice(0, inversion)];
+  const low = 50;
+  const high = 67;
+  return ordered.map((pitch, index) => pitchClassInRange(
+    pitch,
+    low + 2 + index * 4,
+    low,
+    high,
+  ));
+}
+
+function upperKeyboardClass(profile, pitch, reference = profile.rootMidi + 29) {
+  return pitchClassInRange(pitch, reference, 72, 84);
+}
+
+function voicedEvents(pitches, start, duration, velocity, role) {
+  return pitches.map((pitch, index) => event(
+    pitch,
+    start,
+    duration,
+    velocity - index * 0.025,
+    role,
+  ));
+}
+
+function varyPerformance(events, rng, amount = 0.065) {
+  return events.map((musicalEvent) => ({
+    ...musicalEvent,
+    duration: Math.max(0.03, musicalEvent.duration * (0.92 + rng() * 0.14)),
+    velocity: clamp(musicalEvent.velocity + (rng() - 0.5) * amount * 2, 0.05, 1),
+  }));
+}
+
+function chunkEventSignature(chunk) {
+  return chunk.events.map((musicalEvent) => [
+    musicalEvent.role,
+    musicalEvent.pitch,
+    musicalEvent.start.toFixed(7),
+  ].join(':')).join('|');
+}
+
+function chunkSurfaceSignature(chunk) {
+  return chunk.events.map((musicalEvent) => [
+    musicalEvent.role,
+    musicalEvent.start.toFixed(7),
+  ].join(':')).join('|');
+}
+
+function ambientPadVoicing(chord, inversion, spread) {
+  const rotated = [...chord.slice(inversion), ...chord.slice(0, inversion).map((pitch) => pitch + 12)];
+  return rotated.map((pitch, index) => {
+    let voiced = pitch + (spread && index >= 2 ? 12 : 0);
+    while (voiced > 84) voiced -= 12;
+    while (voiced < 43) voiced += 12;
+    return voiced;
+  });
+}
+
+function variedAmbientHarmonyEvents(profile, barDuration, rng, position) {
+  const events = [];
+  const beat = barDuration / 4;
+  for (let bar = 0; bar < profile.chords.length; bar++) {
+    const chord = profile.chords[bar];
+    const inversion = choiceIndex(rng, chord.length, position + bar);
+    const voicing = ambientPadVoicing(chord, inversion, rng() < 0.42);
+    for (let index = 0; index < voicing.length; index++) {
+      events.push(event(
+        voicing[index],
+        bar * barDuration,
+        barDuration * (0.78 + rng() * 0.17),
+        0.62 - index * 0.035,
+        'pad',
+      ));
+    }
+
+    const bassPattern = choice(AMBIENT_BASS_PATTERNS, rng, position + bar);
+    for (let index = 0; index < bassPattern.length; index++) {
+      const beatOffset = bassPattern[index];
+      const nextBeat = bassPattern[index + 1] ?? 4;
+      const pitch = index % 3 === 1 ? chord[Math.min(2, chord.length - 1)] - 12 : chord[0] - 12;
+      events.push(event(
+        pitch,
+        bar * barDuration + beatOffset * beat,
+        Math.max(beat * 0.45, (nextBeat - beatOffset) * beat * 0.8),
+        index === 0 ? 0.7 : 0.52,
+        'bass',
+      ));
+    }
+  }
+  return events;
+}
+
+function variedClassicalBassEvents(profile, barDuration, rng, position) {
+  const events = [];
+  const beat = barDuration / 4;
+  const patterns = [
+    [[0, 0, 3.72]],
+    [[0, 0, 1.85], [2, 2, 1.72]],
+    [[0, 0, 0.9], [2, 1, 0.9], [1, 2, 0.9], [0, 3, 0.84]],
+    [[0, 0, 1.85], [1, 2, 0.9], [2, 3, 0.84]],
+    [[0, 0, 0.9], [1, 1, 0.9], [2, 2, 0.9], [1, 3, 0.84]],
+  ];
+  for (let bar = 0; bar < profile.chords.length; bar++) {
+    const chord = profile.chords[bar];
+    const pattern = choice(patterns, rng, position + bar);
+    for (const [tone, beatOffset, beatLength] of pattern) {
+      events.push(event(
+        lowKeyboardPitch(profile, chord[tone % chord.length]),
+        bar * barDuration + beatOffset * beat,
+        beatLength * beat,
+        beatOffset === 0 ? 0.64 : 0.55,
+        'bass',
+      ));
+    }
+  }
+  const halfBars = Math.max(1, Math.floor(profile.chords.length / 2));
+  for (const bar of [halfBars - 1, profile.chords.length - 1]) {
+    events.push(event(
+      lowKeyboardPitch(profile, profile.chords[bar][0]),
+      (bar + 1) * barDuration - beat,
+      beat * 0.9,
+      bar === profile.chords.length - 1 ? 0.7 : 0.66,
+      'bass',
+    ));
+  }
+  return events;
+}
+
+function variedClassicalAccompanimentEvents(profile, barDuration, rng, position) {
+  const events = [];
+  for (let bar = 0; bar < profile.chords.length; bar++) {
+    const pattern = choice(CLASSICAL_ACCOMPANIMENT_PATTERNS, rng, position + bar);
+    const inversion = choiceIndex(rng, 3, position + bar);
+    const voicing = middleChordVoicing(profile, profile.chords[bar], inversion);
+    const step = barDuration / pattern.length;
+    for (let index = 0; index < pattern.length; index++) {
+      events.push(event(
+        voicing[pattern[index] % voicing.length],
+        bar * barDuration + index * step,
+        step * (index % 4 === 3 ? 0.74 : 0.83),
+        index % 4 === 0 ? 0.58 : 0.47,
+        'accompaniment',
+      ));
+    }
+  }
+  return events;
+}
+
+function variedClassicalHarmonyEvents(profile, barDuration, rng, position) {
+  const events = [];
+  const beat = barDuration / 4;
+  for (let bar = 0; bar < profile.chords.length; bar++) {
+    const inversion = choiceIndex(rng, 3, position + bar);
+    events.push(...voicedEvents(
+      middleChordVoicing(profile, profile.chords[bar], inversion),
+      bar * barDuration,
+      beat * 0.52,
+      0.51,
+      'harmony',
+    ));
+  }
+  const halfBars = Math.max(1, Math.floor(profile.chords.length / 2));
+  for (const bar of [halfBars - 1, profile.chords.length - 1]) {
+    events.push(...voicedEvents(
+      middleChordVoicing(profile, profile.chords[bar], choiceIndex(rng, 3, position + bar + 1)),
+      (bar + 1) * barDuration - beat,
+      beat * 0.75,
+      bar === profile.chords.length - 1 ? 0.64 : 0.58,
+      'harmony',
+    ));
+  }
+  return events;
+}
+
+function variedClassicalLeadEvents(profile, barDuration, rng, lastPitch) {
+  const halfBars = Math.max(1, Math.floor(profile.chords.length / 2));
+  const leadLow = 72;
+  const common = {
+    bpm: profile.bpm,
+    scale: profile.scale,
+    rootMidi: profile.rootMidi,
+    density: clamp(profile.density * (0.82 + rng() * 0.42), 0.24, 0.7),
+    groove: profile.groove,
+    lowMidi: leadLow,
+    highMidi: 84,
+    maxLeap: 7,
+    legato: 0.82 + rng() * 0.1,
+    rng,
+  };
+  const antecedent = generatePhrasePlanned({
+    ...common,
+    bars: halfBars,
+    chords: profile.chords.slice(0, halfBars),
+    stepsPerBeat: choice([2, 2, 3, 4], rng),
+    contour: choice(['arch', 'descend'], rng),
+    cadence: 'dominant',
+    startPitch: lastPitch ?? undefined,
+  });
+  const consequent = generatePhrasePlanned({
+    ...common,
+    bars: profile.chords.length - halfBars,
+    chords: profile.chords.slice(halfBars),
+    stepsPerBeat: choice([2, 3, 4, 4], rng),
+    contour: choice(['arch', 'descend'], rng),
+    cadence: 'tonic',
+    startPitch: antecedent.lastPitch,
+  });
+  const beat = barDuration / 4;
+  const halfCadenceStart = halfBars * barDuration - beat;
+  const finalCadenceStart = profile.chords.length * barDuration - beat;
+  const events = [
+    ...eventsFromPhrase(antecedent.phrase, 0, 'lead', 1.02)
+      .filter((musicalEvent) => musicalEvent.start < halfCadenceStart - 1e-6),
+    ...eventsFromPhrase(consequent.phrase, halfBars * barDuration, 'lead', 1.02)
+      .filter((musicalEvent) => musicalEvent.start < finalCadenceStart - 1e-6),
+  ];
+  events.push(event(
+    upperKeyboardClass(profile, profile.rootMidi + 7),
+    halfCadenceStart,
+    beat * 0.46,
+    0.77,
+    'lead',
+  ));
+  events.push(event(
+    upperKeyboardClass(profile, profile.rootMidi),
+    finalCadenceStart,
+    beat * 0.58,
+    0.8,
+    'lead',
+  ));
+  return events;
+}
+
+function boundedScaleNeighbor(profile, pitch, direction, low = 72, high = 84) {
+  const preferred = nearestScaleNeighbor(profile, pitch, direction);
+  if (preferred >= low && preferred <= high) return preferred;
+  return nearestScaleNeighbor(profile, pitch, -direction);
+}
+
+function scaleRunInto(profile, target, noteCount, ascending = true) {
+  const notes = [target];
+  let pitch = target;
+  let direction = ascending ? -1 : 1;
+  for (let index = 1; index < noteCount; index++) {
+    const next = boundedScaleNeighbor(profile, pitch, direction);
+    if ((direction < 0 && next >= pitch) || (direction > 0 && next <= pitch)) direction *= -1;
+    pitch = next;
+    notes.unshift(pitch);
+  }
+  return notes;
+}
+
+function variedClassicalOrnamentEvents(profile, barDuration, rng, position) {
+  const events = [];
+  const step = barDuration / choice([24, 28, 32, 36], rng, position);
+  const halfBars = Math.max(1, Math.floor(profile.chords.length / 2));
+  const dominant = upperKeyboardClass(profile, profile.rootMidi + 7);
+  const tonic = upperKeyboardClass(profile, profile.rootMidi);
+  const upper = nearestScaleNeighbor(profile, dominant, dominant >= 82 ? -1 : 1);
+  const lower = nearestScaleNeighbor(profile, dominant, -1);
+  const turn = position % 2 === 0
+    ? [dominant, upper, dominant, lower, dominant]
+    : [dominant, lower, dominant, upper, dominant];
+  const finalRun = scaleRunInto(profile, tonic, choice([5, 6, 7], rng, position), position % 3 !== 0);
+  for (const [point, pitches] of [
+    [halfBars * barDuration, turn],
+    [profile.chords.length * barDuration, finalRun],
+  ]) {
+    const start = point - step * pitches.length;
+    for (let index = 0; index < pitches.length; index++) {
+      events.push(event(
+        clamp(pitches[index], 72, 84),
+        start + index * step,
+        step * 0.8,
+        index === pitches.length - 1 ? 0.74 : 0.59,
+        'ornament',
+      ));
+    }
+  }
+  return events;
+}
+
+function variedClassicalKeyboardEvents(profile, barDuration, rng, position, lastPitch) {
+  return varyPerformance(withoutCoincidentDuplicates([
+    ...variedClassicalBassEvents(profile, barDuration, rng, position),
+    ...variedClassicalAccompanimentEvents(profile, barDuration, rng, position),
+    ...variedClassicalHarmonyEvents(profile, barDuration, rng, position),
+    ...variedClassicalLeadEvents(profile, barDuration, rng, lastPitch),
+    ...variedClassicalOrnamentEvents(profile, barDuration, rng, position),
+  ]), rng);
+}
+
+function variedBaroqueBassEvents(profile, barDuration, rng, position) {
+  const events = [];
+  const beat = barDuration / 4;
+  const patterns = [
+    { onsets: [0, 1, 2, 3], tones: [0, 2, 1, 'next'] },
+    { onsets: [0, 1, 2, 3], tones: [0, 1, 2, 'next'] },
+    { onsets: [0, 2], tones: [0, 'next'] },
+    { onsets: [0, 1.5, 2.5, 3.5], tones: [0, 2, 1, 'next'] },
+    { onsets: [0, 0.5, 1.5, 2.5, 3.5], tones: [0, 0, 2, 1, 'next'] },
+    { onsets: [0, 1, 1.5, 2, 3], tones: [0, 2, 1, 0, 'next'] },
+    { onsets: [0, 0.75, 2, 2.75], tones: [0, 1, 2, 'next'] },
+    { onsets: [0, 0.5, 1, 2, 3, 3.5], tones: [0, 2, 1, 0, 2, 'next'] },
+  ];
+  for (let bar = 0; bar < profile.chords.length; bar++) {
+    const chord = profile.chords[bar];
+    const nextChord = profile.chords[Math.min(profile.chords.length - 1, bar + 1)];
+    const pattern = choice(patterns, rng, position + bar);
+    for (let index = 0; index < pattern.onsets.length; index++) {
+      const token = pattern.tones[index];
+      const source = token === 'next' ? nextChord[0] : chord[token % chord.length];
+      const nextOnset = pattern.onsets[index + 1] ?? 4;
+      events.push(event(
+        lowKeyboardPitch(profile, source, profile.rootMidi - 9 + index),
+        bar * barDuration + pattern.onsets[index] * beat,
+        Math.max(beat * 0.38, (nextOnset - pattern.onsets[index]) * beat * 0.82),
+        index === 0 ? 0.65 : 0.54,
+        'bass',
+      ));
+    }
+  }
+  return events;
+}
+
+function variedBaroqueBrokenChordEvents(profile, barDuration, rng, position) {
+  const events = [];
+  const sixteenth = barDuration / 16;
+  for (let bar = 0; bar < profile.chords.length; bar++) {
+    const pattern = choice(BAROQUE_BROKEN_CHORD_PATTERNS, rng, position + bar);
+    const grid = choice(BAROQUE_ACCOMPANIMENT_GRIDS, rng, position * 2 + bar);
+    const voicing = middleChordVoicing(profile, profile.chords[bar], choiceIndex(rng, 3, bar + position));
+    for (let index = 0; index < grid.length; index++) {
+      const column = grid[index];
+      const nextColumn = grid[index + 1] ?? 16;
+      events.push(event(
+        voicing[pattern[index % pattern.length] % voicing.length],
+        bar * barDuration + column * sixteenth,
+        Math.max(sixteenth * 0.62, (nextColumn - column) * sixteenth * 0.72),
+        index % 4 === 0 ? 0.57 : 0.45,
+        'accompaniment',
+      ));
+    }
+  }
+  return events;
+}
+
+function variedBaroqueHarmonyEvents(profile, barDuration, rng, position) {
+  const events = [];
+  const sixteenth = barDuration / 16;
+  for (let bar = 0; bar < profile.chords.length; bar++) {
+    events.push(...voicedEvents(
+      middleChordVoicing(profile, profile.chords[bar], choiceIndex(rng, 3, position + bar)),
+      bar * barDuration,
+      sixteenth * 1.65,
+      0.52,
+      'harmony',
+    ));
+  }
+  events.push(...voicedEvents(
+    middleChordVoicing(profile, profile.chords.at(-1), choiceIndex(rng, 3, position + 1)),
+    profile.chords.length * barDuration - sixteenth,
+    sixteenth * 1.35,
+    0.64,
+    'harmony',
+  ));
+  return events;
+}
+
+function baroqueMotifPitches(profile, chordTones, columns, family, rng, salt) {
+  const root = chordTones[0];
+  const top = Math.max(...chordTones);
+  const neighbor = boundedScaleNeighbor(profile, top, top >= 82 ? -1 : 1);
+  const targetLength = columns.length - 1;
+  let pitches;
+  if (family === 0) {
+    pitches = [top, top, neighbor, top];
+  } else if (family === 1) {
+    pitches = [root, root, root, chordTones[1], root];
+  } else if (family === 2) {
+    const ascending = [...chordTones].sort((left, right) => left - right);
+    pitches = Array.from({ length: targetLength }, (_, index) => (
+      ascending[(index + salt) % ascending.length]
+    ));
+  } else if (family === 3) {
+    let pitch = choice(chordTones, rng, salt);
+    let direction = pitch >= 81 ? -1 : 1;
+    pitches = [pitch];
+    while (pitches.length < targetLength) {
+      const next = boundedScaleNeighbor(profile, pitch, direction);
+      if ((direction > 0 && next <= pitch) || (direction < 0 && next >= pitch)) direction *= -1;
+      pitch = next;
+      pitches.push(pitch);
+    }
+  } else {
+    const low = Math.min(...chordTones);
+    pitches = [root, top, low, chordTones[1], top, root];
+  }
+
+  while (pitches.length < targetLength) {
+    const index = pitches.length;
+    const tone = chordTones[choiceIndex(rng, chordTones.length, salt + index)];
+    pitches.push(rng() < 0.24 ? boundedScaleNeighbor(profile, tone, tone >= 82 ? -1 : 1) : tone);
+  }
+  pitches.length = targetLength;
+  if (pitches.length > 6) pitches[Math.floor(pitches.length / 2)] = root;
+  return pitches;
+}
+
+function variedBaroqueLeadAndCounterEvents(profile, barDuration, rng, position, section) {
+  const lead = [];
+  const counter = [];
+  const sixteenth = barDuration / 16;
+  const cadenceClass = section === 'A' ? profile.rootMidi + 7 : profile.rootMidi;
+  const gestureBar = choiceIndex(rng, profile.chords.length, position);
+  for (let bar = 0; bar < profile.chords.length; bar++) {
+    const chord = profile.chords[bar];
+    const columns = choice(
+      bar === gestureBar ? BAROQUE_GESTURE_COLUMNS : BAROQUE_LEAD_COLUMNS,
+      rng,
+      position * 3 + bar,
+    );
+    const chordTones = chord.map((pitch, index) => upperKeyboardClass(
+      profile,
+      pitch,
+      profile.rootMidi + 28 + index * 2,
+    ));
+    const family = bar === gestureBar ? 0 : 1 + choiceIndex(rng, 4, position + bar);
+    const pitches = baroqueMotifPitches(
+      profile,
+      chordTones,
+      columns,
+      family,
+      rng,
+      position * profile.chords.length + bar,
+    );
+    const endingTarget = bar === profile.chords.length - 1
+      ? cadenceClass
+      : profile.chords[bar + 1][choiceIndex(rng, profile.chords[bar + 1].length, position + bar)];
+    pitches.push(upperKeyboardClass(
+      profile,
+      endingTarget,
+      section === 'A' ? profile.rootMidi + 31 : profile.rootMidi + 28,
+    ));
+    for (let index = 0; index < columns.length; index++) {
+      lead.push(event(
+        clamp(pitches[index], 72, 84),
+        bar * barDuration + columns[index] * sixteenth,
+        sixteenth * (family === 3 ? 0.72 : 0.84),
+        index === 0 ? 0.71 : 0.61,
+        'lead',
+      ));
+    }
+    const counterIndexes = [
+      Math.floor(columns.length * 0.38),
+      Math.floor(columns.length * 0.62),
+      columns.length - 2,
+    ];
+    for (const index of counterIndexes) {
+      if (index < 1 || index >= columns.length - 1) continue;
+      const upper = pitches[index];
+      const companion = chordTones
+        .filter((pitch) => pitch !== upper)
+        .sort((left, right) => Math.abs(Math.abs(upper - left) - 4) - Math.abs(Math.abs(upper - right) - 4))[0];
+      if (companion === undefined || companion === upper) continue;
+      counter.push(event(
+        companion,
+        bar * barDuration + columns[index] * sixteenth,
+        sixteenth * 0.8,
+        0.5,
+        'counter',
+      ));
+    }
+  }
+  return [...lead, ...counter];
+}
+
+function variedBaroqueKeyboardEvents(profile, barDuration, rng, position, section) {
+  return varyPerformance(withoutCoincidentDuplicates([
+    ...variedBaroqueBassEvents(profile, barDuration, rng, position),
+    ...variedBaroqueBrokenChordEvents(profile, barDuration, rng, position),
+    ...variedBaroqueHarmonyEvents(profile, barDuration, rng, position),
+    ...variedBaroqueLeadAndCounterEvents(profile, barDuration, rng, position, section),
+  ]), rng, 0.055);
+}
+
+/** Stateful pure composer. It receives no Web Audio handles, clocks, or modulation rate. */
+export class StyleComposer {
+  constructor(candidateCount = 6, rng = Math.random, options = {}) {
+    this.rng = rng;
+    this.former = new PhraseFormer(candidateCount, rng);
+    this.avoidKeyOffset = Number.isFinite(options?.avoidKeyOffset) ? options.avoidKeyOffset : null;
+    this.position = 0;
+    this.lastClassicalPitch = null;
+    this.session = null;
+    this.previousChunkSignature = null;
+    this.previousSurfaceSignature = null;
+  }
+
+  reset() {
+    this.former.reset();
+    this.position = 0;
+    this.lastClassicalPitch = null;
+    this.session = null;
+    this.previousChunkSignature = null;
+    this.previousSurfaceSignature = null;
+  }
+
+  sessionProfile(profile) {
+    const identity = JSON.stringify([
+      profile.mode,
+      profile.style,
+      profile.rootMidi,
+      profile.bpm,
+      profile.scale,
+      profile.chords,
+      profile.keyOffsets ?? [0],
+    ]);
+    if (!this.session || this.session.identity !== identity) {
+      const approvedOffsets = profile.keyOffsets ?? [0];
+      const alternatives = approvedOffsets.filter((offset) => offset !== this.avoidKeyOffset);
+      const keyOffset = choice(alternatives.length > 0 ? alternatives : approvedOffsets, this.rng);
+      this.session = {
+        identity,
+        keyOffset,
+        profile: transposeProfile(profile, keyOffset),
+      };
+      this.position = 0;
+      this.lastClassicalPitch = null;
+      this.previousChunkSignature = null;
+      this.previousSurfaceSignature = null;
+    }
+    return this.session.profile;
+  }
+
+  next(profile) {
+    if (!['ambient', 'classical', 'baroque'].includes(profile.style)) {
+      throw new RangeError(`Unsupported composition style: ${profile.style}`);
+    }
+    const sessionProfile = this.sessionProfile(profile);
+    let chunk;
+    let signature;
+    let surfaceSignature;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (profile.style === 'ambient') chunk = this.nextAmbient(sessionProfile);
+      else if (profile.style === 'classical') chunk = this.nextClassical(sessionProfile);
+      else chunk = this.nextBaroque(sessionProfile);
+      signature = chunkEventSignature(chunk);
+      surfaceSignature = chunkSurfaceSignature(chunk);
+      if (
+        signature !== this.previousChunkSignature
+        && surfaceSignature !== this.previousSurfaceSignature
+      ) break;
+    }
+    this.previousChunkSignature = signature;
+    this.previousSurfaceSignature = surfaceSignature;
+    return chunk;
+  }
+
+  nextAmbient(profile) {
+    const position = this.position++;
+    const progression = choice(AMBIENT_PROGRESSIONS, this.rng, position);
+    const chunkProfile = profileWithProgression(profile, progression, 4);
+    const barDuration = barDurationFor(chunkProfile);
+    const duration = barDuration * chunkProfile.chords.length;
+    const lead = this.former.next({
+      bpm: chunkProfile.bpm,
+      scale: chunkProfile.scale,
+      rootMidi: chunkProfile.rootMidi,
+      bars: chunkProfile.chords.length,
+      density: clamp(chunkProfile.density * (0.78 + this.rng() * 0.5), 0.2, 0.75),
+      chords: chunkProfile.chords,
+      groove: clamp(chunkProfile.groove * (0.72 + this.rng() * 0.5), 0, 0.7),
+    }, chunkProfile.icBand);
+    const counter = generatePhrase({
+      bpm: chunkProfile.bpm,
+      scale: chunkProfile.scale,
+      rootMidi: chunkProfile.rootMidi,
+      bars: chunkProfile.chords.length,
+      density: clamp(chunkProfile.density * (0.18 + this.rng() * 0.3), 0.08, 0.3),
+      groove: 0,
+      stepsPerBeat: choice([1, 2, 3], this.rng, position),
+      octave: 0,
+      legato: 0.86 + this.rng() * 0.1,
+      rng: this.rng,
+    });
+    const events = varyPerformance(withoutCoincidentDuplicates([
+      ...variedAmbientHarmonyEvents(chunkProfile, barDuration, this.rng, position),
+      ...eventsFromPhrase(lead),
+      ...eventsFromPhrase(counter, 0, 'counter', 0.42),
+    ]), this.rng, 0.045);
+    return sortedChunk(duration, events, { tonicMidi: chunkProfile.rootMidi });
+  }
+
+  nextClassical(profile) {
+    const position = this.position++;
+    const progression = choice(CLASSICAL_PROGRESSIONS, this.rng, position);
+    const chunkProfile = profileWithProgression(profile, progression);
+    const barDuration = barDurationFor(chunkProfile);
+    const duration = barDuration * chunkProfile.chords.length;
+    const events = variedClassicalKeyboardEvents(
+      chunkProfile,
+      barDuration,
+      this.rng,
+      position,
+      this.lastClassicalPitch,
+    );
+    this.lastClassicalPitch = events
+      .filter((musicalEvent) => musicalEvent.role === 'lead')
+      .sort((left, right) => left.start - right.start)
+      .at(-1)?.pitch ?? null;
+    return sortedChunk(duration, events, { tonicMidi: chunkProfile.rootMidi });
+  }
+
+  nextBaroque(profile) {
+    const position = this.position++;
+    const section = position % 2 === 0 ? 'A' : 'B';
+    const progression = choice(BAROQUE_PROGRESSIONS[section], this.rng, position);
+    const chunkProfile = profileWithProgression(profile, progression);
+    const barDuration = barDurationFor(chunkProfile);
+    return sortedChunk(
+      barDuration * chunkProfile.chords.length,
+      variedBaroqueKeyboardEvents(chunkProfile, barDuration, this.rng, position, section),
+      { tonicMidi: chunkProfile.rootMidi },
+    );
   }
 }

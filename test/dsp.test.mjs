@@ -5,8 +5,8 @@ import { amEnvelope, dominantFrequency } from '../audio/dsp.mjs';
 import { profileFor } from '../audio/policy.mjs';
 
 for (const [mode, modFreq, depth] of [
-  ['focus', 16, 0.5],
-  ['relax', 10, 0.4],
+  ['focus', 12, 0.5],
+  ['relax', 8, 0.4],
 ]) {
   test(`${mode} envelope carries the configured modulation rate and depth`, () => {
     const sampleRate = 1024;
@@ -21,6 +21,31 @@ test('runtime profile parameters feed the same pure envelope contract', () => {
   const profile = profileFor('focus', { focusHz: 12.5 });
   const envelope = amEnvelope(4096, 1024, profile);
   assert.ok(Math.abs(dominantFrequency(envelope, 1024) - 12.5) < 0.26);
+});
+
+test('sampled profiles preserve keyboard attacks with subtle early reflections', () => {
+  for (const mode of ['focus', 'relax']) {
+    const piano = profileFor(mode, { musicStyle: 'classical' });
+    const harpsichord = profileFor(mode, { musicStyle: 'baroque' });
+
+    assert.ok(piano.brightness >= 8000 && piano.brightness <= 10000);
+    assert.ok(harpsichord.brightness >= 10000 && harpsichord.brightness <= 12000);
+    for (const profile of [piano, harpsichord]) {
+      assert.ok(profile.room.delaySeconds >= 0.035 && profile.room.delaySeconds <= 0.06);
+      assert.ok(profile.room.feedback >= 0 && profile.room.feedback <= 0.08);
+      assert.ok(profile.room.wet >= 0 && profile.room.wet <= 0.1);
+    }
+  }
+});
+
+test('ambient profiles preserve their existing brightness and delay mix', () => {
+  const focus = profileFor('focus', { musicStyle: 'ambient' });
+  const relax = profileFor('relax', { musicStyle: 'ambient' });
+
+  assert.equal(focus.brightness, 2200);
+  assert.equal(relax.brightness, 1450);
+  assert.deepEqual(focus.room, { delaySeconds: 0.32, feedback: 0.22, wet: 0.24 });
+  assert.deepEqual(relax.room, { delaySeconds: 0.32, feedback: 0.22, wet: 0.24 });
 });
 
 test('invalid envelope parameters are rejected', () => {

@@ -6,12 +6,12 @@ const SESSION_ALARM_NAME = 'flowWatchSessionEnd';
 const BADGE_BLUE = '#3b82f6';   // focus
 const BADGE_GREEN = '#10b981';  // break
 const DEFAULT_FOCUS_MINUTES = 15;
-const AUDIO_SETTING_KEYS = ['focusHz', 'relaxHz', 'musicStyle', 'instrument', 'playAudio'];
+const AUDIO_SETTING_KEYS = ['focusHz', 'relaxHz', 'musicStyle', 'playAudio'];
+const AUDIO_KEY_HISTORY_KEY = 'flowWatchAudioKeyOffsets';
 const DEFAULT_AUDIO_SETTINGS = {
-  focusHz: 16,
-  relaxHz: 10,
-  musicStyle: 'ambient',
-  instrument: 'existing'
+  focusHz: 12,
+  relaxHz: 8,
+  musicStyle: 'ambient'
 };
 
 function minutesFromSeconds(sec) {
@@ -88,7 +88,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (Object.keys(localDefaults).length) await chrome.storage.local.set(localDefaults);
 
   const settings = await chrome.storage.sync.get([
-    'focusMinutes', 'focusHz', 'relaxHz', 'musicStyle', 'instrument'
+    'focusMinutes', 'focusHz', 'relaxHz', 'musicStyle'
   ]);
   const syncDefaults = {};
   if (!Number.isFinite(Number(settings.focusMinutes))) {
@@ -120,8 +120,41 @@ async function ensureOffscreenDocument() {
   });
 }
 
+async function readAudioKeyHistory() {
+  if (!chrome.storage?.session) return {};
+  try {
+    const stored = await chrome.storage.session.get(AUDIO_KEY_HISTORY_KEY);
+    const history = stored?.[AUDIO_KEY_HISTORY_KEY];
+    return history && typeof history === 'object' && !Array.isArray(history) ? history : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+async function rememberAudioKey(history, response) {
+  if (!chrome.storage?.session) return;
+  if (!response || typeof response.style !== 'string' || !Number.isFinite(response.keyOffset)) return;
+  try {
+    await chrome.storage.session.set({
+      [AUDIO_KEY_HISTORY_KEY]: { ...history, [response.style]: response.keyOffset },
+    });
+  } catch (_) {}
+}
+
+async function sendPlaybackMessage(type, settings, mode = null) {
+  const previousKeyOffsets = await readAudioKeyHistory();
+  const message = {
+    type,
+    ...(mode ? { mode } : {}),
+    settings,
+    ...(Object.keys(previousKeyOffsets).length > 0 ? { previousKeyOffsets } : {}),
+  };
+  const response = await chrome.runtime.sendMessage(message);
+  await rememberAudioKey(previousKeyOffsets, response);
+}
+
 function playModeAudio(mode, settings) {
-  chrome.runtime.sendMessage({ type: 'audio:play', mode, settings });
+  void sendPlaybackMessage('audio:play', settings, mode).catch(() => {});
 }
 
 async function forwardAudioSettingsToOffscreen(changes, areaName) {
@@ -131,7 +164,7 @@ async function forwardAudioSettingsToOffscreen(changes, areaName) {
   try {
     if (chrome.offscreen?.hasDocument && !(await chrome.offscreen.hasDocument())) return;
     const settings = await readAudioSettings();
-    await chrome.runtime.sendMessage({ type: 'audio:update', settings });
+    await sendPlaybackMessage('audio:update', settings);
   } catch (_) {}
 }
 

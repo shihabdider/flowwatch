@@ -24,7 +24,12 @@ function storageArea(initial = {}) {
   };
 }
 
-function harness(localOverrides = {}, { hasOffscreenDocument = false } = {}) {
+function harness(localOverrides = {}, {
+  hasOffscreenDocument = false,
+  syncOverrides = {},
+  sessionOverrides = {},
+  messageResponse = null,
+} = {}) {
   const listeners = {};
   const sent = [];
   const local = storageArea({
@@ -38,15 +43,16 @@ function harness(localOverrides = {}, { hasOffscreenDocument = false } = {}) {
   });
   const sync = storageArea({
     focusMinutes: 15,
-    focusHz: 16,
-    relaxHz: 10,
+    focusHz: 12,
+    relaxHz: 8,
     musicStyle: 'ambient',
-    instrument: 'existing',
     playAudio: true,
+    ...syncOverrides,
   });
+  const session = storageArea(sessionOverrides);
   const event = (name) => ({ addListener(listener) { listeners[name] = listener; } });
   const chrome = {
-    storage: { local, sync, onChanged: event('storageChanged') },
+    storage: { local, sync, session, onChanged: event('storageChanged') },
     action: {
       setBadgeBackgroundColor: async () => {},
       setBadgeText: async () => {},
@@ -62,7 +68,10 @@ function harness(localOverrides = {}, { hasOffscreenDocument = false } = {}) {
       onStartup: event('startup'),
       onInstalled: event('installed'),
       onMessage: event('runtimeMessage'),
-      sendMessage(message) { sent.push(message); return Promise.resolve(); },
+      sendMessage(message) {
+        sent.push(message);
+        return Promise.resolve(typeof messageResponse === 'function' ? messageResponse(message) : messageResponse);
+      },
     },
     offscreen: {
       Reason: { AUDIO_PLAYBACK: 'AUDIO_PLAYBACK' },
@@ -76,11 +85,27 @@ function harness(localOverrides = {}, { hasOffscreenDocument = false } = {}) {
   };
   const context = vm.createContext({ chrome, console, Date, Math, setTimeout, clearTimeout });
   vm.runInContext(readFileSync('background.js', 'utf8'), context, { filename: 'background.js' });
-  return { context, local, sync, sent, listeners };
+  return { context, local, sync, session, sent, listeners };
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 const plain = (value) => JSON.parse(JSON.stringify(value));
+
+const defaultAudioSettings = {
+  focusHz: 12,
+  relaxHz: 8,
+  musicStyle: 'ambient',
+  playAudio: true,
+};
+
+test('installation fills the approved 12/8 audio defaults without an instrument key', async () => {
+  const app = harness({}, { syncOverrides: { focusHz: undefined, relaxHz: undefined, musicStyle: undefined } });
+  await app.listeners.installed();
+  assert.equal(app.sync.data.focusHz, 12);
+  assert.equal(app.sync.data.relaxHz, 8);
+  assert.equal(app.sync.data.musicStyle, 'ambient');
+  assert.equal('instrument' in app.sync.data, false);
+});
 
 test('starting focus requests focus-mode generated audio', async () => {
   const app = harness();
@@ -91,14 +116,34 @@ test('starting focus requests focus-mode generated audio', async () => {
   assert.deepEqual(plain(app.sent.at(-1)), {
     type: 'audio:play',
     mode: 'focus',
-    settings: {
-      focusHz: 16,
-      relaxHz: 10,
-      musicStyle: 'ambient',
-      instrument: 'existing',
-      playAudio: true,
-    },
+    settings: defaultAudioSettings,
   });
+});
+
+test('playback key history survives offscreen closure in browser-session storage', async () => {
+  const chosenOffsets = [-5, -3];
+  let responseIndex = 0;
+  const app = harness({}, {
+    syncOverrides: { musicStyle: 'baroque' },
+    messageResponse: (message) => (
+      message.type === 'audio:play'
+        ? { ok: true, style: 'baroque', keyOffset: chosenOffsets[responseIndex++] }
+        : { ok: true }
+    ),
+  });
+  const settings = JSON.stringify({ ...defaultAudioSettings, musicStyle: 'baroque' });
+
+  await vm.runInContext(`sendPlaybackMessage("audio:play", ${settings}, "focus")`, app.context);
+  assert.deepEqual(plain(app.sent[0]), {
+    type: 'audio:play',
+    mode: 'focus',
+    settings: { ...defaultAudioSettings, musicStyle: 'baroque' },
+  });
+  assert.deepEqual(plain(app.session.data.flowWatchAudioKeyOffsets), { baroque: -5 });
+
+  await vm.runInContext(`sendPlaybackMessage("audio:play", ${settings}, "focus")`, app.context);
+  assert.deepEqual(plain(app.sent[1].previousKeyOffsets), { baroque: -5 });
+  assert.deepEqual(plain(app.session.data.flowWatchAudioKeyOffsets), { baroque: -3 });
 });
 
 test('ending a completed focus session transitions from focus to relax audio', async () => {
@@ -120,13 +165,7 @@ test('ending a completed focus session transitions from focus to relax audio', a
     {
       type: 'audio:play',
       mode: 'relax',
-      settings: {
-        focusHz: 16,
-        relaxHz: 10,
-        musicStyle: 'ambient',
-        instrument: 'existing',
-        playAudio: true,
-      },
+      settings: defaultAudioSettings,
     },
   ]);
 });
@@ -143,13 +182,20 @@ test('audio setting changes are forwarded when the offscreen document exists', a
   assert.deepEqual(plain(app.sent), [{
     type: 'audio:update',
     settings: {
-      focusHz: 16,
-      relaxHz: 10,
+      ...defaultAudioSettings,
       musicStyle: 'baroque',
-      instrument: 'existing',
-      playAudio: true,
     },
   }]);
+});
+
+test('legacy instrument changes are ignored by the active audio contract', async () => {
+  const app = harness({}, { hasOffscreenDocument: true, syncOverrides: { instrument: 'piano' } });
+  app.sync.data.instrument = 'harpsichord';
+  app.listeners.storageChanged({
+    instrument: { oldValue: 'piano', newValue: 'harpsichord' },
+  }, 'sync');
+  await settle();
+  assert.deepEqual(app.sent, []);
 });
 
 test('ending focus early stops audio without starting relax mode', async () => {

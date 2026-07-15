@@ -21,15 +21,22 @@ function settingsForPlayback(rawSettings) {
   };
 }
 
-async function playMode(mode, rawSettings) {
+async function playMode(mode, rawSettings, previousKeyOffsets = {}) {
   const settings = settingsForPlayback(rawSettings);
   if (!settings.playAudio) {
     activeMode = null;
     engine.stop();
-    return;
+    return { style: settings.musicStyle, keyOffset: null };
   }
+  const previousOffset = Number(previousKeyOffsets?.[settings.musicStyle]);
   activeMode = mode;
-  await engine.play(mode, settings);
+  await engine.play(mode, settings, {
+    ...(Number.isFinite(previousOffset) ? { avoidKeyOffset: previousOffset } : {}),
+  });
+  return {
+    style: settings.musicStyle,
+    keyOffset: engine.keyOffsetForStyle(settings.musicStyle),
+  };
 }
 
 function stopAudio() {
@@ -37,13 +44,14 @@ function stopAudio() {
   engine.stop();
 }
 
-async function updateAudioSettings(rawSettings) {
+async function updateAudioSettings(rawSettings, previousKeyOffsets = {}) {
   const settings = settingsForPlayback(rawSettings);
   if (!settings.playAudio) {
     stopAudio();
-    return;
+    return { style: settings.musicStyle, keyOffset: null };
   }
-  if (activeMode) await engine.update(settings);
+  if (activeMode) return playMode(activeMode, settings, previousKeyOffsets);
+  return { style: settings.musicStyle, keyOffset: null };
 }
 
 function playAlarm() {
@@ -63,11 +71,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         if (message.mode !== 'focus' && message.mode !== 'relax') {
           return { ok: false, error: 'unsupported-mode' };
         }
-        await playMode(message.mode, message.settings);
-        return { ok: true };
+        return {
+          ok: true,
+          ...await playMode(message.mode, message.settings, message.previousKeyOffsets),
+        };
       case 'audio:update':
-        await updateAudioSettings(message.settings);
-        return { ok: true };
+        return {
+          ok: true,
+          ...await updateAudioSettings(message.settings, message.previousKeyOffsets),
+        };
       case 'audio:stop':
       case 'audio:pause': // backward-compatible with the previous offscreen protocol
         stopAudio();
