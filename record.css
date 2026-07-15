@@ -24,10 +24,18 @@ h2 {
     align-items: center;
     justify-content: center;
     gap: 20px;
+    font-size: 18px;
+    margin: 0 0 16px;
 }
 
-
-
+.settings-group {
+    max-width: 620px;
+    margin: 0 auto 24px;
+    padding: 20px 24px 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fafafa;
+}
 
 .switch-container {
     display: flex;
@@ -48,12 +56,15 @@ h2 {
 .option label {
     font-weight: 600;
 }
-.option input[type="number"] {
-    width: 120px;
+.option input[type="number"],
+.option select {
+    width: 150px;
+    box-sizing: border-box;
     padding: 6px 8px;
     font-size: 14px;
     border: 1px solid #ccc;
     border-radius: 6px;
+    background: white;
 }
 
 /* The switch - the box around the slider */

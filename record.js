@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     }
 
-    // Default focus length
+    // Timer and generated-audio settings
     const focusMinutesInput = document.getElementById('focusMinutesInput');
     if (focusMinutesInput) {
         chrome.storage.sync.get('focusMinutes', ({ focusMinutes }) => {
@@ -53,6 +53,42 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    function bindRateInput(id, key, min, max, fallback) {
+      const input = document.getElementById(id);
+      if (!input) return;
+      chrome.storage.sync.get(key, (stored) => {
+        const value = Number(stored[key]);
+        input.value = Number.isFinite(value)
+          ? Math.max(min, Math.min(max, value))
+          : fallback;
+      });
+      input.addEventListener('change', () => {
+        const parsed = Number(input.value);
+        const value = Number.isFinite(parsed)
+          ? Math.max(min, Math.min(max, parsed))
+          : fallback;
+        input.value = value;
+        chrome.storage.sync.set({ [key]: value });
+      });
+    }
+
+    function bindSelect(id, key, allowed, fallback) {
+      const select = document.getElementById(id);
+      if (!select) return;
+      chrome.storage.sync.get(key, (stored) => {
+        select.value = allowed.includes(stored[key]) ? stored[key] : fallback;
+      });
+      select.addEventListener('change', () => {
+        const value = allowed.includes(select.value) ? select.value : fallback;
+        select.value = value;
+        chrome.storage.sync.set({ [key]: value });
+      });
+    }
+
+    bindRateInput('focusHzInput', 'focusHz', 12, 16, 16);
+    bindRateInput('relaxHzInput', 'relaxHz', 8, 12, 10);
+    bindSelect('musicStyleSelect', 'musicStyle', ['ambient', 'classical', 'baroque'], 'ambient');
+    bindSelect('instrumentSelect', 'instrument', ['existing', 'piano', 'harpsichord'], 'existing');
 
     const promptIntentionToggle = document.getElementById('promptIntentionToggle');
     if (promptIntentionToggle) {

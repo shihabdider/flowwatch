@@ -1,0 +1,11 @@
+{
+  "name": "flowwatch",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node scripts/check.mjs",
+    "verify": "npm run test && npm run check"
+  }
+}

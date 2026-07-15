@@ -1,13 +1,13 @@
 let flowwatchEvents = [];
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Binaural audio toggle using storage.local
+    // Generated-audio toggle uses the same synced setting as the options page.
     const playAudioToggle = document.getElementById('playAudioToggle');
-    chrome.storage.local.get('playAudio', (data) => {
-        playAudioToggle.checked = data.playAudio !== false; // default true if not set
+    chrome.storage.sync.get('playAudio', (data) => {
+        playAudioToggle.checked = data.playAudio !== false;
     });
     playAudioToggle.addEventListener('change', () => {
-        chrome.storage.local.set({ 'playAudio': playAudioToggle.checked });
+        chrome.storage.sync.set({ playAudio: playAudioToggle.checked });
     });
 
     // Timer control wiring

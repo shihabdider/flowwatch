@@ -2,12 +2,17 @@ const MIN_BREAK_MINUTES = 3;
 const MAX_BREAK_MINUTES = 20;
 const TIMER_ALARM_NAME = 'flowWatchTimer';
 const SESSION_ALARM_NAME = 'flowWatchSessionEnd';
-const MIN_RECORD_MINUTES = 15;
-
 // Badge/colors + defaults
 const BADGE_BLUE = '#3b82f6';   // focus
 const BADGE_GREEN = '#10b981';  // break
 const DEFAULT_FOCUS_MINUTES = 15;
+const AUDIO_SETTING_KEYS = ['focusHz', 'relaxHz', 'musicStyle', 'instrument', 'playAudio'];
+const DEFAULT_AUDIO_SETTINGS = {
+  focusHz: 16,
+  relaxHz: 10,
+  musicStyle: 'ambient',
+  instrument: 'existing'
+};
 
 function minutesFromSeconds(sec) {
   return Math.floor(sec / 60);
@@ -69,24 +74,38 @@ function updateBadge() {
 
 chrome.runtime.onStartup.addListener(updateBadge);
 
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.set({
-    isRunning: false,
-    mode: 'focus',
-    startTime: null,
-    focusDuration: 0,
-    intention: '',
-    sessions: []
-  });
-  chrome.storage.sync.get('focusMinutes', ({ focusMinutes }) => {
-    if (!Number.isFinite(focusMinutes)) {
-      chrome.storage.sync.set({ focusMinutes: DEFAULT_FOCUS_MINUTES });
-    }
-  });
+chrome.runtime.onInstalled.addListener(async () => {
+  const local = await chrome.storage.local.get([
+    'isRunning', 'mode', 'startTime', 'focusDuration', 'intention', 'sessions'
+  ]);
+  const localDefaults = {};
+  if (local.isRunning === undefined) localDefaults.isRunning = false;
+  if (local.mode === undefined) localDefaults.mode = 'focus';
+  if (local.startTime === undefined) localDefaults.startTime = null;
+  if (local.focusDuration === undefined) localDefaults.focusDuration = 0;
+  if (local.intention === undefined) localDefaults.intention = '';
+  if (!Array.isArray(local.sessions)) localDefaults.sessions = [];
+  if (Object.keys(localDefaults).length) await chrome.storage.local.set(localDefaults);
+
+  const settings = await chrome.storage.sync.get([
+    'focusMinutes', 'focusHz', 'relaxHz', 'musicStyle', 'instrument'
+  ]);
+  const syncDefaults = {};
+  if (!Number.isFinite(Number(settings.focusMinutes))) {
+    syncDefaults.focusMinutes = DEFAULT_FOCUS_MINUTES;
+  }
+  for (const [key, value] of Object.entries(DEFAULT_AUDIO_SETTINGS)) {
+    if (settings[key] === undefined) syncDefaults[key] = value;
+  }
+  if (Object.keys(syncDefaults).length) await chrome.storage.sync.set(syncDefaults);
   updateBadge();
 });
 
 // Offscreen helpers for audio playback
+async function readAudioSettings() {
+  return chrome.storage.sync.get(AUDIO_SETTING_KEYS);
+}
+
 async function ensureOffscreenDocument() {
   try {
     if (chrome.offscreen && chrome.offscreen.hasDocument) {
@@ -97,16 +116,31 @@ async function ensureOffscreenDocument() {
   await chrome.offscreen.createDocument({
     url: 'offscreen.html',
     reasons: [chrome.offscreen.Reason.AUDIO_PLAYBACK],
-    justification: 'Play binaural beats and alarm sounds during sessions'
+    justification: 'Play generated focus and relax music plus session alarms'
   });
 }
 
-function playFocusAudio() {
-  chrome.runtime.sendMessage({ type: 'audio:play' });
+function playModeAudio(mode, settings) {
+  chrome.runtime.sendMessage({ type: 'audio:play', mode, settings });
 }
 
-function pauseFocusAudio() {
-  chrome.runtime.sendMessage({ type: 'audio:pause' });
+async function forwardAudioSettingsToOffscreen(changes, areaName) {
+  if (areaName !== 'sync') return;
+  if (!AUDIO_SETTING_KEYS.some((key) => key in changes)) return;
+
+  try {
+    if (chrome.offscreen?.hasDocument && !(await chrome.offscreen.hasDocument())) return;
+    const settings = await readAudioSettings();
+    await chrome.runtime.sendMessage({ type: 'audio:update', settings });
+  } catch (_) {}
+}
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  void forwardAudioSettingsToOffscreen(changes, areaName);
+});
+
+function stopGeneratedAudio() {
+  chrome.runtime.sendMessage({ type: 'audio:stop' });
 }
 
 function playAlarm() {
@@ -175,12 +209,11 @@ async function startFocusSession(intention) {
   });
   chrome.alarms.create(TIMER_ALARM_NAME, { periodInMinutes: 1 / 60 });
   updateBadge();
-  chrome.storage.sync.get(['playAudio'], async (res) => {
-    if (res.playAudio !== false) {
-      await ensureOffscreenDocument();
-      playFocusAudio();
-    }
-  });
+  const audioSettings = await readAudioSettings();
+  if (audioSettings.playAudio !== false) {
+    await ensureOffscreenDocument();
+    playModeAudio('focus', audioSettings);
+  }
 }
 
 function endFocusSession() {
@@ -210,7 +243,7 @@ function endFocusSession() {
       // Ended before planned time: stop cleanly without alarm or break, but record the session
       chrome.alarms.clear(TIMER_ALARM_NAME);
       chrome.alarms.clear(SESSION_ALARM_NAME);
-      pauseFocusAudio();
+      stopGeneratedAudio();
       closeOffscreenDocument();
       await chrome.storage.local.set({
         isRunning: false,
@@ -223,7 +256,7 @@ function endFocusSession() {
     }
 
     await ensureOffscreenDocument();
-    pauseFocusAudio();
+    stopGeneratedAudio();
     playAlarm();
 
     const breakMinutes = calculateBreakTime(focusDurationSeconds / 60);
@@ -235,6 +268,9 @@ function endFocusSession() {
     });
     chrome.alarms.create(SESSION_ALARM_NAME, { when: now + breakMinutes * 60 * 1000 });
     updateBadge();
+
+    const audioSettings = await readAudioSettings().catch(() => ({}));
+    if (audioSettings.playAudio !== false) playModeAudio('relax', audioSettings);
 
     chrome.notifications.create({
       type: 'basic',
@@ -254,7 +290,7 @@ function finishBreak() {
       startTime: null,
       plannedMinutes: 0
     });
-    pauseFocusAudio();
+    stopGeneratedAudio();
     closeOffscreenDocument();
     clearBadge();
     chrome.notifications.create({
@@ -268,7 +304,7 @@ function finishBreak() {
 
 function resetTimer() {
   chrome.alarms.clearAll();
-  pauseFocusAudio();
+  stopGeneratedAudio();
   closeOffscreenDocument();
   chrome.storage.local.set({
     isRunning: false,
