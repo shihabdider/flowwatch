@@ -188,6 +188,25 @@ function openingMelodySignature(chunk, barDuration) {
   ]));
 }
 
+function classicalOrnamentGestures(chunk) {
+  const ornaments = eventsByRole(chunk, 'ornament');
+  return [
+    ornaments.filter((event) => event.start < chunk.duration / 2),
+    ornaments.filter((event) => event.start >= chunk.duration / 2),
+  ].map((events) => events.sort((left, right) => left.start - right.start));
+}
+
+function ornamentPitchContour(events) {
+  const target = events.at(-1)?.pitch ?? 0;
+  return JSON.stringify(events.map((event) => event.pitch - target));
+}
+
+function ornamentRhythmContour(events) {
+  const first = events[0]?.start ?? 0;
+  const span = (events.at(-1)?.start ?? first) - first || 1;
+  return JSON.stringify(events.map((event) => Number(((event.start - first) / span).toFixed(4))));
+}
+
 test('Euclidean rhythm handles empty, full, and distributed cases', () => {
   assert.deepEqual(euclid(0, 4), [false, false, false, false]);
   assert.deepEqual(euclid(4, 4), [true, true, true, true]);
@@ -330,6 +349,38 @@ test('Classical varies its chord-tone figures without losing phrase cadences', (
     assert.equal(pitchClass(antecedent.at(-1).pitch), pitchClass(chunk.tonicMidi + 7));
     assert.equal(pitchClass(lead.at(-1).pitch), pitchClass(chunk.tonicMidi));
   }
+});
+
+test('Classical cadential flourishes vary contour and rhythm while preserving their targets', () => {
+  const profile = profileFor('focus', { musicStyle: 'classical' });
+  const chunks = Array.from({ length: 64 }, (_, index) => (
+    new StyleComposer(5, seeded(5231 + index * 7919)).next(profile)
+  ));
+  const gestures = chunks.flatMap(classicalOrnamentGestures);
+  const pitchContours = new Set(gestures.map(ornamentPitchContour));
+  const rhythmContours = new Set(gestures.map(ornamentRhythmContour));
+  const completeShapes = new Set(gestures.map((events) => (
+    `${ornamentPitchContour(events)}:${ornamentRhythmContour(events)}`
+  )));
+
+  assert.ok(pitchContours.size >= 20, 'flourishes use recognizably different pitch contours');
+  assert.ok(rhythmContours.size >= 12, 'flourishes vary their onset surfaces, not only performance');
+  assert.ok(completeShapes.size >= 36, 'pitch and rhythm choices combine into broad flourish variety');
+  for (const chunk of chunks) {
+    const [midpoint, final] = classicalOrnamentGestures(chunk);
+    assert.ok(midpoint.length >= 5 && final.length >= 5);
+    assert.equal(pitchClass(midpoint.at(-1).pitch), pitchClass(chunk.tonicMidi + 7));
+    assert.equal(pitchClass(final.at(-1).pitch), pitchClass(chunk.tonicMidi));
+    assert.ok([...midpoint, ...final].every((event) => event.pitch >= 72 && event.pitch <= 84));
+  }
+
+  const longPlayComposer = new StyleComposer(5, seeded(9901));
+  const longPlayGestures = Array.from({ length: 16 }, () => longPlayComposer.next(profile))
+    .flatMap(classicalOrnamentGestures);
+  const longPlayShapes = new Set(longPlayGestures.map((events) => (
+    `${ornamentPitchContour(events)}:${ornamentRhythmContour(events)}`
+  )));
+  assert.ok(longPlayShapes.size >= 24, 'one continuous play avoids repeating one flourish plan');
 });
 
 test('Baroque chunks create independent bass, continuous treble, ornaments, intervals, and binary cadences', () => {

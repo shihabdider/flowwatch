@@ -513,6 +513,36 @@ const CLASSICAL_ACCOMPANIMENT_PATTERNS = Object.freeze([
   Object.freeze([0, 1, 0, 2, 1, 2, 1, 0]),
 ]);
 
+const CLASSICAL_FLOURISH_FAMILIES = Object.freeze([
+  'turn',
+  'scale',
+  'sweep',
+  'rebound',
+]);
+
+const CLASSICAL_FLOURISH_RHYTHMS = Object.freeze({
+  turn: Object.freeze([
+    Object.freeze([1, 0.72, 0.72, 1.18, 0.9]),
+    Object.freeze([1.32, 0.68, 0.9, 0.68, 1.12, 0.82]),
+    Object.freeze([0.82, 0.82, 1.28, 0.64, 0.92, 1.08]),
+  ]),
+  scale: Object.freeze([
+    Object.freeze([1.42, 1.2, 1, 0.84, 0.7, 0.64, 0.9]),
+    Object.freeze([0.72, 0.84, 1, 1.18, 1.38, 0.76]),
+    Object.freeze([1.2, 0.66, 0.66, 1.08, 0.72, 0.72, 1.3]),
+  ]),
+  sweep: Object.freeze([
+    Object.freeze([1.32, 0.7, 0.7, 1.18, 0.76, 0.76, 1.12]),
+    Object.freeze([0.74, 0.74, 1.36, 0.68, 0.98, 0.68, 1.18]),
+    Object.freeze([1.18, 0.64, 0.92, 1.28, 0.64, 0.92, 0.82]),
+  ]),
+  rebound: Object.freeze([
+    Object.freeze([1.28, 0.62, 1.08, 0.72, 1.22, 0.68, 0.92]),
+    Object.freeze([0.68, 1.34, 0.64, 0.88, 1.16, 0.72, 1.08]),
+    Object.freeze([1.12, 0.72, 0.72, 1.32, 0.62, 0.94, 0.8]),
+  ]),
+});
+
 const BAROQUE_BROKEN_CHORD_PATTERNS = Object.freeze([
   Object.freeze([0, 1, 2, 1, 0, 2, 1, 2, 0, 1, 2, 1, 0, 2, 1, 2]),
   Object.freeze([0, 2, 1, 2, 0, 1, 2, 1, 0, 2, 1, 2, 0, 1, 2, 1]),
@@ -883,34 +913,114 @@ function scaleRunInto(profile, target, noteCount, ascending = true) {
   return notes;
 }
 
+function classicalFlourishChordTones(profile, chord, target) {
+  return [...new Set(chord.map((pitch, index) => upperKeyboardClass(
+    profile,
+    pitch,
+    target + (index - 1) * 4,
+  )))].sort((left, right) => left - right);
+}
+
+function classicalFlourishPitches(profile, chord, target, family, rng, salt) {
+  const direction = choice([-1, 1], rng, salt);
+  const firstNeighbor = boundedScaleNeighbor(profile, target, direction);
+  const secondNeighbor = boundedScaleNeighbor(profile, target, -direction);
+
+  if (family === 'turn') {
+    return choice([
+      [target, firstNeighbor, target, secondNeighbor, target],
+      [secondNeighbor, target, firstNeighbor, target, secondNeighbor, target],
+      [firstNeighbor, target, secondNeighbor, target, firstNeighbor, target],
+    ], rng, salt + 1);
+  }
+
+  if (family === 'scale') {
+    const run = scaleRunInto(
+      profile,
+      target,
+      choice([5, 6, 7, 8], rng, salt + 1),
+      direction > 0,
+    );
+    return [...run, firstNeighbor, target];
+  }
+
+  const chordTones = classicalFlourishChordTones(profile, chord, target);
+  if (family === 'sweep') {
+    const ordered = direction > 0 ? chordTones : [...chordTones].reverse();
+    const rotation = choiceIndex(rng, ordered.length, salt);
+    const rotated = [...ordered.slice(rotation), ...ordered.slice(0, rotation)];
+    const sweepLength = choice([4, 5, 6], rng, salt + 1);
+    const sweep = Array.from({ length: sweepLength }, (_, index) => (
+      rotated[index % rotated.length]
+    ));
+    return [...sweep, target, firstNeighbor, target, secondNeighbor, target];
+  }
+
+  if (family === 'rebound') {
+    const leapChoices = chordTones.filter((pitch) => pitch !== target);
+    const leap = choice(leapChoices.length > 0 ? leapChoices : chordTones, rng, salt + 1);
+    const recoveryDirection = Math.sign(target - leap) || direction;
+    const recovery = boundedScaleNeighbor(profile, leap, recoveryDirection);
+    return choice([
+      [leap, recovery, target, firstNeighbor, target, secondNeighbor, target],
+      [firstNeighbor, leap, recovery, target, secondNeighbor, target, firstNeighbor, target],
+      [leap, firstNeighbor, target, secondNeighbor, target, firstNeighbor, target],
+    ], rng, salt + 2);
+  }
+
+  throw new RangeError(`Unsupported Classical flourish family: ${family}`);
+}
+
+function classicalFlourishEvents(profile, chord, target, point, barDuration, family, rng, salt) {
+  const pitches = classicalFlourishPitches(profile, chord, target, family, rng, salt);
+  const rhythmPattern = choice(CLASSICAL_FLOURISH_RHYTHMS[family], rng, salt + 3);
+  const weights = pitches.map((_, index) => rhythmPattern[index % rhythmPattern.length]);
+  const span = barDuration * choice([0.16, 0.19, 0.22], rng, salt + 4);
+  const unit = span / weights.reduce((sum, weight) => sum + weight, 0);
+  let start = point - span;
+  return pitches.map((pitch, index) => {
+    const slot = weights[index] * unit;
+    const musicalEvent = event(
+      clamp(pitch, 72, 84),
+      start,
+      slot * (index === pitches.length - 1 ? 0.88 : 0.76),
+      index === pitches.length - 1 ? 0.74 : 0.59,
+      'ornament',
+    );
+    start += slot;
+    return musicalEvent;
+  });
+}
+
 function variedClassicalOrnamentEvents(profile, barDuration, rng, position) {
-  const events = [];
-  const step = barDuration / choice([24, 28, 32, 36], rng, position);
   const halfBars = Math.max(1, Math.floor(profile.chords.length / 2));
+  const midpointFamily = choice(CLASSICAL_FLOURISH_FAMILIES, rng, position * 2);
+  const finalFamilies = CLASSICAL_FLOURISH_FAMILIES.filter((family) => family !== midpointFamily);
+  const finalFamily = choice(finalFamilies, rng, position * 2 + 1);
   const dominant = upperKeyboardClass(profile, profile.rootMidi + 7);
   const tonic = upperKeyboardClass(profile, profile.rootMidi);
-  const upper = nearestScaleNeighbor(profile, dominant, dominant >= 82 ? -1 : 1);
-  const lower = nearestScaleNeighbor(profile, dominant, -1);
-  const turn = position % 2 === 0
-    ? [dominant, upper, dominant, lower, dominant]
-    : [dominant, lower, dominant, upper, dominant];
-  const finalRun = scaleRunInto(profile, tonic, choice([5, 6, 7], rng, position), position % 3 !== 0);
-  for (const [point, pitches] of [
-    [halfBars * barDuration, turn],
-    [profile.chords.length * barDuration, finalRun],
-  ]) {
-    const start = point - step * pitches.length;
-    for (let index = 0; index < pitches.length; index++) {
-      events.push(event(
-        clamp(pitches[index], 72, 84),
-        start + index * step,
-        step * 0.8,
-        index === pitches.length - 1 ? 0.74 : 0.59,
-        'ornament',
-      ));
-    }
-  }
-  return events;
+  return [
+    ...classicalFlourishEvents(
+      profile,
+      profile.chords[halfBars - 1],
+      dominant,
+      halfBars * barDuration,
+      barDuration,
+      midpointFamily,
+      rng,
+      position * 11,
+    ),
+    ...classicalFlourishEvents(
+      profile,
+      profile.chords.at(-1),
+      tonic,
+      profile.chords.length * barDuration,
+      barDuration,
+      finalFamily,
+      rng,
+      position * 11 + 5,
+    ),
+  ];
 }
 
 function variedClassicalKeyboardEvents(profile, barDuration, rng, position, lastPitch) {
