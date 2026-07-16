@@ -470,6 +470,71 @@ const AMBIENT_BASS_PATTERNS = Object.freeze([
   Object.freeze([0, 0.5, 1.5, 2, 3, 3.5]),
 ]);
 
+const ELECTRONIC_PROGRESSIONS = Object.freeze([
+  Object.freeze([0, 5, 2, 6]),
+  Object.freeze([0, 3, 5, 6]),
+  Object.freeze([5, 2, 0, 6]),
+  Object.freeze([0, 6, 3, 5]),
+  Object.freeze([0, 5, 6, 3]),
+  Object.freeze([2, 6, 0, 5]),
+  Object.freeze([0, 3, 6, 5]),
+  Object.freeze([5, 3, 0, 6]),
+]);
+
+const ELECTRONIC_ENERGY_CYCLE = Object.freeze([0.78, 0.9, 1, 0.86]);
+
+const ELECTRONIC_PULSE_GRIDS = Object.freeze({
+  focus: Object.freeze([
+    Object.freeze([0, 2, 4, 6, 8, 10, 12, 14]),
+    Object.freeze([0, 3, 4, 7, 8, 11, 12, 15]),
+    Object.freeze([0, 2, 3, 5, 7, 8, 10, 11, 13, 15]),
+    Object.freeze([0, 1, 3, 4, 6, 8, 9, 11, 12, 14]),
+    Object.freeze([0, 2, 4, 5, 7, 8, 10, 12, 13, 15]),
+    Object.freeze([0, 1, 3, 5, 6, 8, 9, 11, 13, 14]),
+  ]),
+  relax: Object.freeze([
+    Object.freeze([0, 4, 8, 12]),
+    Object.freeze([0, 3, 6, 10, 13]),
+    Object.freeze([0, 2, 6, 8, 12, 14]),
+    Object.freeze([0, 4, 7, 10, 12, 15]),
+    Object.freeze([0, 3, 5, 8, 11, 14]),
+  ]),
+});
+
+const ELECTRONIC_OSTINATO_GRIDS = Object.freeze({
+  focus: Object.freeze([
+    Object.freeze([0, 2, 4, 6, 8, 10, 12, 14]),
+    Object.freeze([0, 1, 4, 5, 8, 9, 12, 13]),
+    Object.freeze([0, 3, 4, 7, 8, 11, 12, 15]),
+    Object.freeze([0, 2, 5, 6, 8, 10, 13, 14]),
+    Object.freeze([0, 1, 3, 6, 8, 9, 11, 14]),
+  ]),
+  relax: Object.freeze([
+    Object.freeze([0, 4, 8, 12]),
+    Object.freeze([0, 3, 8, 11]),
+    Object.freeze([0, 2, 6, 10, 14]),
+    Object.freeze([0, 4, 7, 11, 14]),
+    Object.freeze([0, 3, 6, 9, 12, 15]),
+  ]),
+});
+
+const ELECTRONIC_OSTINATO_PATTERNS = Object.freeze([
+  Object.freeze([0, 1, 2, 1, 3, 2, 1, 2]),
+  Object.freeze([0, 2, 1, 3, 2, 1, 0, 2]),
+  Object.freeze([2, 1, 0, 1, 3, 1, 2, 1]),
+  Object.freeze([0, 3, 1, 2, 0, 2, 1, 3]),
+  Object.freeze([1, 0, 2, 3, 1, 2, 0, 3]),
+  Object.freeze([3, 1, 2, 0, 1, 3, 2, 1]),
+]);
+
+const ELECTRONIC_LEAD_PATTERNS = Object.freeze([
+  Object.freeze([[0, 0.375, 0], [0, 2.625, 2], [1, 1.375, 1], [2, 0.625, 3], [3, 2.375, 2]]),
+  Object.freeze([[0, 1.375, 2], [1, 0.625, 0], [1, 3.375, 3], [2, 2.625, 1], [3, 1.375, 2]]),
+  Object.freeze([[0, 0.625, 3], [0, 3.375, 1], [1, 2.375, 2], [2, 1.625, 0], [3, 2.625, 3]]),
+  Object.freeze([[0, 2.375, 1], [1, 1.625, 3], [2, 0.375, 2], [2, 3.375, 0], [3, 1.625, 1]]),
+  Object.freeze([[0, 0.375, 2], [1, 2.625, 1], [2, 0.625, 3], [2, 2.375, 0], [3, 3.375, 2]]),
+]);
+
 const CLASSICAL_PROGRESSIONS = Object.freeze([
   Object.freeze([0, 4, 3, 0]),
   Object.freeze([0, 4, 5, 0]),
@@ -1227,6 +1292,133 @@ function variedBaroqueKeyboardEvents(profile, barDuration, rng, position, sectio
   ]), rng, 0.055);
 }
 
+function electronicDroneAndPadEvents(profile, barDuration, rng, position, energy) {
+  const events = [];
+  for (let bar = 0; bar < profile.chords.length; bar++) {
+    const chord = profile.chords[bar];
+    const drone = pitchClassInRange(chord[0], profile.rootMidi - 15, 31, 42);
+    events.push(event(
+      drone,
+      bar * barDuration,
+      barDuration * 1.04,
+      0.44 + energy * 0.06,
+      'drone',
+    ));
+    const voicing = middleChordVoicing(
+      profile,
+      chord,
+      choiceIndex(rng, chord.length, position + bar),
+    );
+    for (let index = 0; index < voicing.length; index++) {
+      events.push(event(
+        voicing[index],
+        bar * barDuration,
+        barDuration * (0.88 + rng() * 0.07),
+        0.42 + energy * 0.08 - index * 0.018,
+        'pad',
+      ));
+    }
+  }
+  return events;
+}
+
+function electronicPulseEvents(profile, barDuration, rng, position, energy) {
+  const events = [];
+  const sixteenth = barDuration / 16;
+  const grids = ELECTRONIC_PULSE_GRIDS[profile.mode];
+  for (let bar = 0; bar < profile.chords.length; bar++) {
+    const chord = profile.chords[bar];
+    const grid = choice(grids, rng, position * 3 + bar);
+    const tonePattern = choice([
+      [0, 0, 2, 0, 1, 0, 2, 0],
+      [0, 2, 0, 1, 0, 2, 1, 0],
+      [0, 0, 1, 2, 0, 1, 0, 2],
+      [0, 1, 0, 2, 1, 0, 2, 0],
+    ], rng, position + bar);
+    for (let index = 0; index < grid.length; index++) {
+      const tone = chord[tonePattern[index % tonePattern.length] % chord.length];
+      events.push(event(
+        pitchClassInRange(tone, profile.rootMidi - 2 + (index % 2) * 3, 43, 55),
+        bar * barDuration + grid[index] * sixteenth,
+        sixteenth * (profile.mode === 'focus' ? 0.68 : 0.82),
+        0.48 + energy * 0.12 + (index === 0 ? 0.05 : 0),
+        'pulse',
+      ));
+    }
+  }
+  return events;
+}
+
+function electronicOstinatoEvents(profile, barDuration, rng, position, energy) {
+  const events = [];
+  const sixteenth = barDuration / 16;
+  const grids = ELECTRONIC_OSTINATO_GRIDS[profile.mode];
+  const pattern = choice(ELECTRONIC_OSTINATO_PATTERNS, rng, position);
+  for (let bar = 0; bar < profile.chords.length; bar++) {
+    const chord = profile.chords[bar];
+    const grid = choice(grids, rng, position * 5 + bar);
+    const rotation = choiceIndex(rng, pattern.length, position + bar);
+    for (let index = 0; index < grid.length; index++) {
+      const toneIndex = pattern[(rotation + index) % pattern.length] % chord.length;
+      events.push(event(
+        pitchClassInRange(chord[toneIndex], profile.rootMidi + 18 + (index % 3) * 2, 60, 76),
+        bar * barDuration + grid[index] * sixteenth,
+        sixteenth * (profile.mode === 'focus' ? 0.78 : 1.1),
+        0.43 + energy * 0.12 + (index % 4 === 0 ? 0.05 : 0),
+        'ostinato',
+      ));
+    }
+  }
+  return events;
+}
+
+function electronicLeadAndImpactEvents(profile, barDuration, rng, position, energy) {
+  const events = [];
+  const beat = barDuration / 4;
+  const sixteenth = barDuration / 16;
+  const pattern = choice(ELECTRONIC_LEAD_PATTERNS, rng, position);
+  for (const [bar, beatOffset, toneIndex] of pattern) {
+    const chord = profile.chords[bar % profile.chords.length];
+    events.push(event(
+      pitchClassInRange(chord[toneIndex % chord.length], profile.rootMidi + 25, 67, 81),
+      bar * barDuration + beatOffset * beat,
+      beat * (profile.mode === 'focus' ? 0.7 : 1.08),
+      0.54 + energy * 0.12,
+      'lead',
+    ));
+  }
+  events.push(event(
+    pitchClassInRange(profile.rootMidi, profile.rootMidi + 24, 67, 81),
+    profile.chords.length * barDuration - beat * 0.35,
+    beat * 0.3,
+    0.66 + energy * 0.1,
+    'lead',
+  ));
+
+  const impactBars = energy >= 0.98 ? [0, Math.floor(profile.chords.length / 2)] : [0];
+  for (const bar of impactBars) {
+    const chord = profile.chords[bar];
+    events.push(event(
+      pitchClassInRange(chord[0], profile.rootMidi - 16, 31, 43),
+      bar * barDuration + sixteenth * 0.5,
+      beat * (0.72 + energy * 0.12),
+      0.62 + energy * 0.16,
+      'impact',
+    ));
+  }
+  return events;
+}
+
+function variedElectronicEvents(profile, barDuration, rng, position) {
+  const energy = ELECTRONIC_ENERGY_CYCLE[position % ELECTRONIC_ENERGY_CYCLE.length];
+  return varyPerformance(withoutCoincidentDuplicates([
+    ...electronicDroneAndPadEvents(profile, barDuration, rng, position, energy),
+    ...electronicPulseEvents(profile, barDuration, rng, position, energy),
+    ...electronicOstinatoEvents(profile, barDuration, rng, position, energy),
+    ...electronicLeadAndImpactEvents(profile, barDuration, rng, position, energy),
+  ]), rng, 0.04);
+}
+
 /** Stateful pure composer. It receives no Web Audio handles, clocks, or modulation rate. */
 export class StyleComposer {
   constructor(candidateCount = 6, rng = Math.random, options = {}) {
@@ -1277,7 +1469,7 @@ export class StyleComposer {
   }
 
   next(profile) {
-    if (!['ambient', 'classical', 'baroque'].includes(profile.style)) {
+    if (!['ambient', 'classical', 'baroque', 'electronic'].includes(profile.style)) {
       throw new RangeError(`Unsupported composition style: ${profile.style}`);
     }
     const sessionProfile = this.sessionProfile(profile);
@@ -1287,7 +1479,8 @@ export class StyleComposer {
     for (let attempt = 0; attempt < 4; attempt++) {
       if (profile.style === 'ambient') chunk = this.nextAmbient(sessionProfile);
       else if (profile.style === 'classical') chunk = this.nextClassical(sessionProfile);
-      else chunk = this.nextBaroque(sessionProfile);
+      else if (profile.style === 'baroque') chunk = this.nextBaroque(sessionProfile);
+      else chunk = this.nextElectronic(sessionProfile);
       signature = chunkEventSignature(chunk);
       surfaceSignature = chunkSurfaceSignature(chunk);
       if (
@@ -1364,6 +1557,18 @@ export class StyleComposer {
     return sortedChunk(
       barDuration * chunkProfile.chords.length,
       variedBaroqueKeyboardEvents(chunkProfile, barDuration, this.rng, position, section),
+      { tonicMidi: chunkProfile.rootMidi },
+    );
+  }
+
+  nextElectronic(profile) {
+    const position = this.position++;
+    const progression = choice(ELECTRONIC_PROGRESSIONS, this.rng, position);
+    const chunkProfile = profileWithProgression(profile, progression, 4);
+    const barDuration = barDurationFor(chunkProfile);
+    return sortedChunk(
+      barDuration * chunkProfile.chords.length,
+      variedElectronicEvents(chunkProfile, barDuration, this.rng, position),
       { tonicMidi: chunkProfile.rootMidi },
     );
   }

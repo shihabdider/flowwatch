@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     bindRateInput('focusHzInput', 'focusHz', 12, 16, 12);
     bindRateInput('relaxHzInput', 'relaxHz', 8, 12, 8);
-    bindSelect('musicStyleSelect', 'musicStyle', ['ambient', 'classical', 'baroque'], 'ambient');
+    bindSelect('musicStyleSelect', 'musicStyle', ['ambient', 'classical', 'baroque', 'electronic'], 'ambient');
 
     const promptIntentionToggle = document.getElementById('promptIntentionToggle');
     if (promptIntentionToggle) {

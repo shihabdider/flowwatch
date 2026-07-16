@@ -129,7 +129,7 @@ class DeferredInstruments {
 }
 
 test('profile-owned processing feeds one downstream whole-mix AM graph', () => {
-  for (const musicStyle of ['ambient', 'classical', 'baroque']) {
+  for (const musicStyle of ['ambient', 'classical', 'baroque', 'electronic']) {
     const engine = new NeuralAudioEngine(FakeAudioContext);
     engine.context = new FakeAudioContext();
     const profile = profileFor('focus', { focusHz: 13, musicStyle });
@@ -266,4 +266,24 @@ test('ambient style keeps the local synth without fetching samples', async (t) =
   assert.ok(engine.context.oscillators.length > 10);
   assert.ok(engine.context.oscillators.every((oscillator) => oscillator.started));
   engine.stop();
+});
+
+test('Electronic uses its dedicated local oscillator voice behind the shared graph', async (t) => {
+  let fetches = 0;
+  const instruments = new InstrumentRenderer(async () => {
+    fetches++;
+    return localFetch();
+  });
+  const engine = new NeuralAudioEngine(FakeAudioContext, instruments);
+  t.after(() => engine.stop());
+  await engine.play('focus', { focusHz: 14, musicStyle: 'electronic' });
+
+  assert.equal(engine.activeGraph.profile.style, 'electronic');
+  assert.equal(engine.activeGraph.profile.voice, 'electronic');
+  assert.equal(engine.activeGraph.preparedVoice.kind, 'synth');
+  assert.equal(engine.activeGraph.lfo.frequency.value, 14);
+  assert.equal(fetches, 0);
+  assert.ok(engine.context.oscillators.length > 100);
+  assert.ok(engine.context.oscillators.some((oscillator) => oscillator.type === 'sawtooth'));
+  assert.ok(engine.context.oscillators.some((oscillator) => oscillator.type === 'square'));
 });

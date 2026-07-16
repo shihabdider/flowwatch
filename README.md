@@ -12,12 +12,15 @@ One click to enter flow, with generated focus music and a timed recovery break.
 - Whole-mix amplitude modulation with separate configurable rates:
   - Focus: 12–16 Hz (default 12 Hz)
   - Relax: 8–12 Hz (default 8 Hz)
-- Three complete musical styles:
+- Four complete musical styles:
   - Ambient with the existing neuralfm synth
   - Mozart-informed Classical with locally sampled piano
   - Scarlatti-informed Baroque with locally sampled harpsichord
+  - Electronic with a local cinematic synth voice
 
 The sampled styles use compact, closely spaced stereo acoustic recordings bundled with the extension. Piano has two velocity layers; Harpsichord has matched pluck and key-release recordings. Classical combines melody, bass, Alberti accompaniment, chords, and cadential turns; Baroque combines independent registers, broken chords, repeated-note ornaments, interval pairs, and chordal cadences. Exact sources, conversions, and licenses are recorded in [`audio/samples/PROVENANCE.md`](audio/samples/PROVENANCE.md). Composer-informed means using broad musical traits, not reproducing specific works or claiming exact imitation.
+
+Electronic is fully synthesized locally with layered low drones, rhythmic pulses, evolving pads, chord-tone ostinatos, sparse lead motifs, and restrained energy builds. It uses broad cinematic-electronic traits without reproducing or claiming to imitate a specific composition.
 
 The generated audio adapts the permitted core algorithm from the private `neuralfm` project. It uses one broadband amplitude envelope for both channels; it is not a binaural-beat pair. The audio is experimental and is not presented as a clinically proven intervention.
 

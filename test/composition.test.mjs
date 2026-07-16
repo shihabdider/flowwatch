@@ -262,7 +262,7 @@ test('phrase former produces a continuous four-part A/A-prime/B/A-prime cycle', 
 });
 
 test('every style produces a valid complete musical chunk', () => {
-  for (const style of ['ambient', 'classical', 'baroque']) {
+  for (const style of ['ambient', 'classical', 'baroque', 'electronic']) {
     const profile = profileFor('focus', { musicStyle: style });
     const chunk = new StyleComposer(4, seeded(20)).next(profile);
     assert.ok(chunk.duration > 0);
@@ -419,7 +419,7 @@ test('Baroque chunks create independent bass, continuous treble, ornaments, inte
 });
 
 test('one seeded composer chooses one reproducible nearby key for an entire play', () => {
-  for (const style of ['ambient', 'classical', 'baroque']) {
+  for (const style of ['ambient', 'classical', 'baroque', 'electronic']) {
     const profile = profileFor('focus', { musicStyle: style });
     const firstComposer = new StyleComposer(5, seeded(801));
     const secondComposer = new StyleComposer(5, seeded(801));
@@ -434,7 +434,7 @@ test('one seeded composer chooses one reproducible nearby key for an entire play
 });
 
 test('every approved nearby key keeps normal generated events inside the local voice range', () => {
-  for (const style of ['ambient', 'classical', 'baroque']) {
+  for (const style of ['ambient', 'classical', 'baroque', 'electronic']) {
     for (const mode of ['focus', 'relax']) {
       const profile = profileFor(mode, { musicStyle: style });
       for (let index = 0; index < profile.keyOffsets.length; index++) {
@@ -454,7 +454,7 @@ test('every approved nearby key keeps normal generated events inside the local v
 });
 
 test('reset clears the style session key and bounded generation tolerates a constant RNG', () => {
-  for (const style of ['ambient', 'classical', 'baroque']) {
+  for (const style of ['ambient', 'classical', 'baroque', 'electronic']) {
     const profile = profileFor('focus', { musicStyle: style });
     let firstDraw = true;
     const composer = new StyleComposer(3, () => {
@@ -488,6 +488,61 @@ test('Ambient plays vary key, harmony, bass surface, and lead surface', () => {
   assert.ok(new Set(chunks.map((chunk) => rolePitchSignature(chunk, 'pad'))).size >= 16);
   assert.ok(new Set(chunks.map((chunk) => roleOnsetSignature(chunk, 'bass'))).size >= 8);
   assert.ok(new Set(chunks.map((chunk) => roleOnsetSignature(chunk, 'lead'))).size >= 20);
+});
+
+test('Electronic chunks layer drones, pulses, pads, ostinatos, leads, and restrained impacts', () => {
+  const eventCounts = {};
+  for (const [mode, expectedBpm] of [['focus', 112], ['relax', 84]]) {
+    const profile = profileFor(mode, { musicStyle: 'electronic' });
+    const chunk = new StyleComposer(5, seeded(mode === 'focus' ? 7301 : 7302)).next(profile);
+    const barDuration = (60 / profile.bpm) * 4;
+    const drone = eventsByRole(chunk, 'drone');
+    const pulse = eventsByRole(chunk, 'pulse');
+    const pad = eventsByRole(chunk, 'pad');
+    const ostinato = eventsByRole(chunk, 'ostinato');
+    const lead = eventsByRole(chunk, 'lead');
+    const impact = eventsByRole(chunk, 'impact');
+
+    assert.equal(profile.bpm, expectedBpm);
+    assert.equal(chunk.duration, barDuration * profile.chords.length);
+    assert.ok(drone.length >= profile.chords.length);
+    assert.ok(pulse.length >= profile.chords.length * 4);
+    assert.ok(pad.length >= profile.chords.length * 3);
+    assert.ok(ostinato.length >= profile.chords.length * 4);
+    assert.ok(lead.length >= 4);
+    assert.ok(impact.length >= 1 && impact.length <= 2);
+    assert.ok(drone.every((event) => event.pitch >= 31 && event.pitch <= 42));
+    assert.ok(pulse.every((event) => event.pitch >= 43 && event.pitch <= 55));
+    assert.ok(pad.every((event) => event.pitch >= 50 && event.pitch <= 67));
+    assert.ok(ostinato.every((event) => event.pitch >= 60 && event.pitch <= 76));
+    assert.ok(lead.every((event) => event.pitch >= 67 && event.pitch <= 81));
+    assert.ok(impact.every((event) => event.pitch >= 31 && event.pitch <= 43));
+    assert.ok(longestRest(drone, chunk.duration) <= barDuration * 0.06);
+    assert.ok(totalOverlapDuration([drone, pad, ostinato], chunk.duration) >= chunk.duration * 0.08);
+    assert.equal(pitchClass(lead.at(-1).pitch), pitchClass(chunk.tonicMidi));
+    const exactOnsets = chunk.events.map((event) => `${onsetKey(event.start)}:${event.pitch}`);
+    assert.equal(new Set(exactOnsets).size, exactOnsets.length);
+    assert.ok(chunk.events.length < 180, `${mode} Electronic density stays bounded`);
+    eventCounts[mode] = { pulse: pulse.length, ostinato: ostinato.length };
+  }
+  assert.ok(eventCounts.focus.pulse > eventCounts.relax.pulse);
+  assert.ok(eventCounts.focus.ostinato > eventCounts.relax.ostinato);
+});
+
+test('Electronic plans vary across new plays and through one continuous session', () => {
+  const profile = profileFor('focus', { musicStyle: 'electronic' });
+  const chunks = Array.from({ length: 48 }, (_, index) => (
+    new StyleComposer(5, seeded(8101 + index * 7919)).next(profile)
+  ));
+  assert.equal(new Set(chunks.map(eventPlanSignature)).size, chunks.length);
+  assert.ok(new Set(chunks.map((chunk) => roleOnsetSignature(chunk, 'pulse'))).size >= 8);
+  assert.ok(new Set(chunks.map((chunk) => roleOnsetSignature(chunk, 'ostinato'))).size >= 8);
+  assert.ok(new Set(chunks.map((chunk) => rolePitchSignature(chunk, 'ostinato'))).size >= 20);
+
+  const composer = new StyleComposer(5, seeded(8123));
+  const longPlay = Array.from({ length: 16 }, () => composer.next(profile));
+  assert.ok(new Set(longPlay.map((chunk) => rolePitchSignature(chunk, 'ostinato'))).size >= 12);
+  assert.equal(new Set(longPlay.map(eventPlanSignature)).size, longPlay.length);
 });
 
 test('Baroque first plays vary pitch-independent melody, bass, and accompaniment surfaces', () => {
@@ -583,7 +638,7 @@ test('long keyboard plays avoid exact chunk loops while retaining one session ke
 });
 
 test('modulation-rate changes do not alter a seeded musical event plan', () => {
-  for (const style of ['ambient', 'classical', 'baroque']) {
+  for (const style of ['ambient', 'classical', 'baroque', 'electronic']) {
     for (const [mode, baseHz, changedHz, field] of [
       ['focus', 12, 16, 'focusHz'],
       ['relax', 8, 12, 'relaxHz'],

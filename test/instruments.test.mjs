@@ -361,3 +361,31 @@ test('ambient synth preparation performs no sample fetch', async () => {
   assert.equal(fetches, 0);
   assert.equal(context.oscillators.length, 3);
 });
+
+test('Electronic prepares locally and gives its layers distinct oscillator timbres', async () => {
+  const context = new FakeAudioContext();
+  let fetches = 0;
+  const renderer = new InstrumentRenderer(async () => {
+    fetches++;
+    throw new Error('should not fetch');
+  });
+  const prepared = await renderer.prepare(context, 'electronic');
+  const drone = renderer.schedule(prepared, note({ pitch: 38, role: 'drone', duration: 2 }), new FakeNode());
+  const pulse = renderer.schedule(prepared, note({ pitch: 48, role: 'pulse', duration: 0.15, start: 2.2 }), new FakeNode());
+  const ostinato = renderer.schedule(prepared, note({ pitch: 64, role: 'ostinato', duration: 0.2, start: 2.4 }), new FakeNode());
+  const impact = renderer.schedule(prepared, note({ pitch: 34, role: 'impact', duration: 0.7, start: 2.6 }), new FakeNode());
+
+  assert.equal(prepared.kind, 'synth');
+  assert.equal(prepared.voice, 'electronic');
+  assert.equal(fetches, 0);
+  assert.equal(drone.length, 4);
+  assert.equal(pulse.length, 3);
+  assert.equal(ostinato.length, 4);
+  assert.equal(impact.length, 3);
+  assert.ok(drone.some((source) => source.detune.value < 0));
+  assert.ok(drone.some((source) => source.detune.value > 0));
+  assert.ok(pulse.some((source) => source.type === 'square'));
+  assert.ok(ostinato.some((source) => source.type === 'sawtooth'));
+  assert.ok(impact.some((source) => source.frequency.value < pulse[0].frequency.value));
+  assert.ok(context.oscillators.every((source) => source.startedAt !== null));
+});

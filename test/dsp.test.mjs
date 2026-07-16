@@ -48,6 +48,19 @@ test('ambient profiles preserve their existing brightness and delay mix', () => 
   assert.deepEqual(relax.room, { delaySeconds: 0.32, feedback: 0.22, wet: 0.24 });
 });
 
+test('Electronic profiles use a brighter focus mix and spacious bounded delay', () => {
+  const focus = profileFor('focus', { musicStyle: 'electronic' });
+  const relax = profileFor('relax', { musicStyle: 'electronic' });
+
+  assert.ok(focus.brightness >= 4500 && focus.brightness <= 6000);
+  assert.ok(relax.brightness >= 3000 && relax.brightness < focus.brightness);
+  for (const profile of [focus, relax]) {
+    assert.ok(profile.room.delaySeconds >= 0.2 && profile.room.delaySeconds <= 0.35);
+    assert.ok(profile.room.feedback >= 0.2 && profile.room.feedback <= 0.3);
+    assert.ok(profile.room.wet >= 0.18 && profile.room.wet <= 0.28);
+  }
+});
+
 test('invalid envelope parameters are rejected', () => {
   assert.throws(() => amEnvelope(10, 100, { modFreq: 0, depth: 0.5 }), /modFreq/);
   assert.throws(() => amEnvelope(10, 100, { modFreq: 10, depth: 2 }), /depth/);

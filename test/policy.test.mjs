@@ -36,11 +36,13 @@ test('unknown styles fall back and legacy instrument settings are ignored', () =
 });
 
 test('each approved style owns exactly one voice', () => {
-  assert.deepEqual(VOICES, ['synth', 'piano', 'harpsichord']);
+  assert.deepEqual(STYLES, ['ambient', 'classical', 'baroque', 'electronic']);
+  assert.deepEqual(VOICES, ['synth', 'piano', 'harpsichord', 'electronic']);
   assert.deepEqual(STYLE_VOICES, {
     ambient: 'synth',
     classical: 'piano',
     baroque: 'harpsichord',
+    electronic: 'electronic',
   });
 
   for (const mode of MODES) {
@@ -83,8 +85,26 @@ test('the approved style tempos remain unchanged', () => {
       ambient: [96, 72],
       classical: [88, 68],
       baroque: [104, 76],
+      electronic: [112, 84],
     },
   );
+});
+
+test('Electronic profiles use a minor cinematic palette with stronger focus momentum', () => {
+  const focus = profileFor('focus', { musicStyle: 'electronic' });
+  const relax = profileFor('relax', { musicStyle: 'electronic' });
+
+  assert.equal(focus.voice, 'electronic');
+  assert.equal(relax.voice, 'electronic');
+  assert.deepEqual(focus.scale, [0, 2, 3, 5, 7, 8, 10]);
+  assert.deepEqual(relax.scale, [0, 2, 3, 5, 7, 8, 10]);
+  assert.ok(focus.density > relax.density);
+  assert.ok(focus.groove > relax.groove);
+  assert.ok(focus.brightness > relax.brightness);
+  assert.equal(focus.pad, true);
+  assert.equal(relax.pad, true);
+  assert.equal(focus.bassPattern, 'ostinato');
+  assert.equal(relax.bassPattern, 'pulse');
 });
 
 const pitchClass = (midi) => ((midi % 12) + 12) % 12;

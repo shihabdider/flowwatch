@@ -137,6 +137,10 @@ export function selectSampleLayer(zone, velocity = 1) {
 
 function roleLevel(role) {
   if (role === 'bass') return 0.13;
+  if (role === 'drone') return 0.07;
+  if (role === 'pulse') return 0.09;
+  if (role === 'ostinato') return 0.085;
+  if (role === 'impact') return 0.12;
   if (role === 'pad') return 0.085;
   if (role === 'accompaniment') return 0.1;
   if (role === 'counter') return 0.075;
@@ -152,6 +156,27 @@ function oscillatorEnvelope(voice, role, duration) {
   }
   if (voice === 'harpsichord') {
     return { attack: 0.003, decay: Math.min(0.55, duration * 0.55), sustain: 0.025, release: 0.08, level: level * 0.85 };
+  }
+  if (voice === 'electronic') {
+    if (role === 'drone') {
+      return { attack: 0.32, decay: 0.5, sustain: 0.78, release: 1.15, level: level * 0.9 };
+    }
+    if (role === 'pad') {
+      return { attack: 0.24, decay: 0.45, sustain: 0.68, release: 0.95, level };
+    }
+    if (role === 'pulse' || role === 'ostinato') {
+      return {
+        attack: 0.006,
+        decay: Math.min(0.16, duration * 0.55),
+        sustain: role === 'pulse' ? 0.08 : 0.14,
+        release: role === 'pulse' ? 0.1 : 0.16,
+        level,
+      };
+    }
+    if (role === 'impact') {
+      return { attack: 0.004, decay: Math.min(0.52, duration * 0.7), sustain: 0.035, release: 0.62, level };
+    }
+    return { attack: 0.018, decay: 0.28, sustain: 0.38, release: 0.48, level: level * 0.92 };
   }
   if (role === 'pad') {
     return { attack: 0.75, decay: 0.5, sustain: 0.72, release: 1.25, level };
@@ -174,6 +199,52 @@ function oscillatorPartials(voice, role) {
       { ratio: 2, type: 'square', gain: 0.17 },
       { ratio: 3, type: 'sine', gain: 0.1 },
       { ratio: 4, type: 'sine', gain: 0.06 },
+    ];
+  }
+  if (voice === 'electronic') {
+    if (role === 'drone') {
+      return [
+        { ratio: 0.5, type: 'sine', gain: 0.3 },
+        { ratio: 1, type: 'sawtooth', gain: 0.3, detune: -7 },
+        { ratio: 1, type: 'sawtooth', gain: 0.3, detune: 7 },
+        { ratio: 2, type: 'triangle', gain: 0.1 },
+      ];
+    }
+    if (role === 'pad') {
+      return [
+        { ratio: 0.5, type: 'sine', gain: 0.22 },
+        { ratio: 1, type: 'sawtooth', gain: 0.34, detune: -8 },
+        { ratio: 1, type: 'sawtooth', gain: 0.34, detune: 8 },
+        { ratio: 2, type: 'triangle', gain: 0.1 },
+      ];
+    }
+    if (role === 'pulse') {
+      return [
+        { ratio: 1, type: 'square', gain: 0.48 },
+        { ratio: 1, type: 'sawtooth', gain: 0.32, detune: -4 },
+        { ratio: 0.5, type: 'sine', gain: 0.2 },
+      ];
+    }
+    if (role === 'ostinato') {
+      return [
+        { ratio: 1, type: 'sawtooth', gain: 0.52 },
+        { ratio: 2, type: 'square', gain: 0.16 },
+        { ratio: 0.5, type: 'sine', gain: 0.22 },
+        { ratio: 3, type: 'triangle', gain: 0.1 },
+      ];
+    }
+    if (role === 'impact') {
+      return [
+        { ratio: 0.5, type: 'sine', gain: 0.56 },
+        { ratio: 1, type: 'triangle', gain: 0.3 },
+        { ratio: 2, type: 'sine', gain: 0.14 },
+      ];
+    }
+    return [
+      { ratio: 1, type: 'sawtooth', gain: 0.42, detune: -3 },
+      { ratio: 1, type: 'sawtooth', gain: 0.42, detune: 3 },
+      { ratio: 2, type: 'square', gain: 0.1 },
+      { ratio: 0.5, type: 'sine', gain: 0.16 },
     ];
   }
   if (role === 'pad') {
@@ -281,7 +352,7 @@ export class InstrumentRenderer {
   }
 
   async prepareUncached(context, voice) {
-    if (voice === 'synth') return { kind: 'synth', voice, context };
+    if (voice === 'synth' || voice === 'electronic') return { kind: 'synth', voice, context };
     const bank = SAMPLE_BANKS[voice];
     if (!bank) throw new RangeError(`Unsupported voice: ${voice}`);
     try {

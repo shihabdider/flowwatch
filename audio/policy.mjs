@@ -2,12 +2,13 @@
 // callers never duplicate rate bounds, style fallbacks, or instrument pairings.
 
 export const MODES = Object.freeze(['focus', 'relax']);
-export const STYLES = Object.freeze(['ambient', 'classical', 'baroque']);
-export const VOICES = Object.freeze(['synth', 'piano', 'harpsichord']);
+export const STYLES = Object.freeze(['ambient', 'classical', 'baroque', 'electronic']);
+export const VOICES = Object.freeze(['synth', 'piano', 'harpsichord', 'electronic']);
 export const STYLE_VOICES = Object.freeze({
   ambient: 'synth',
   classical: 'piano',
   baroque: 'harpsichord',
+  electronic: 'electronic',
 });
 
 export const STORAGE_DEFAULTS = Object.freeze({
@@ -143,6 +144,43 @@ const STYLE_POLICY = Object.freeze({
       room: Object.freeze({ delaySeconds: 0.05, feedback: 0.035, wet: 0.07 }),
       pad: false,
       bassPattern: 'walking',
+    }),
+  }),
+  electronic: Object.freeze({
+    keyOffsets: NEARBY_KEY_OFFSETS,
+    focus: Object.freeze({
+      bpm: 112,
+      rootMidi: 50, // D3, D natural minor
+      scale: Object.freeze([0, 2, 3, 5, 7, 8, 10]),
+      chords: Object.freeze([
+        Object.freeze([50, 53, 57, 60]),
+        Object.freeze([46, 50, 53, 57]),
+        Object.freeze([53, 57, 60, 64]),
+        Object.freeze([48, 52, 55, 58]),
+      ]),
+      density: 0.62,
+      groove: 0.28,
+      brightness: 5200,
+      room: Object.freeze({ delaySeconds: 0.24, feedback: 0.24, wet: 0.22 }),
+      pad: true,
+      bassPattern: 'ostinato',
+    }),
+    relax: Object.freeze({
+      bpm: 84,
+      rootMidi: 45, // A2, A natural minor
+      scale: Object.freeze([0, 2, 3, 5, 7, 8, 10]),
+      chords: Object.freeze([
+        Object.freeze([45, 48, 52, 55]),
+        Object.freeze([41, 45, 48, 52]),
+        Object.freeze([48, 52, 55, 59]),
+        Object.freeze([43, 47, 50, 53]),
+      ]),
+      density: 0.4,
+      groove: 0.14,
+      brightness: 3600,
+      room: Object.freeze({ delaySeconds: 0.3, feedback: 0.27, wet: 0.26 }),
+      pad: true,
+      bassPattern: 'pulse',
     }),
   }),
 });
